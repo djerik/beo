@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 300" role="img" aria-label="The Raspberry Pi connects to the router, to the classic music system through a Master Link interface, and optionally to a speaker">
+<title>The Raspberry Pi connects to the router, to the classic music system through a Master Link interface, and optionally to a speaker</title>
+<style>
+.bg{fill:#f6f7f9}
+.s{fill:#ffffff;stroke:#1f2933;stroke-width:2;stroke-linejoin:round}
+.l{fill:none;stroke:#1f2933;stroke-width:2;stroke-linecap:round}
+.f{fill:#1f2933}
+.pi{fill:#fff4ec;stroke:#c2410c;stroke-width:2.5;stroke-linejoin:round}
+.a{fill:none;stroke:#c2410c;stroke-width:2;stroke-linecap:round}
+.af{fill:#c2410c}
+.w{fill:none;stroke:#6b7785;stroke-width:2;stroke-linecap:round;stroke-dasharray:2 7}
+.c{fill:none;stroke:#1f2933;stroke-width:2.5;stroke-linecap:round}
+text{font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;fill:#1f2933}
+.m{fill:#6b7785}
+.at{fill:#c2410c}
+@media (prefers-color-scheme:dark){
+.bg{fill:#161b22}
+.s{fill:#0d1117;stroke:#e6edf3}
+.l,.c{stroke:#e6edf3}
+.f{fill:#e6edf3}
+.pi{fill:#2a1a10;stroke:#f0883e}
+.a{stroke:#f0883e}
+.af,.at{fill:#f0883e}
+.w{stroke:#8b949e}
+text{fill:#e6edf3}
+.m{fill:#8b949e}
+}
+</style>
+<defs><marker id="e" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="af" d="M0 0 10 5 0 10z"/></marker><marker id="b" viewBox="0 0 10 10" refX="2" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="af" d="M10 0 0 5 10 10z"/></marker></defs>
+<rect class="bg" width="960" height="300" rx="14"/>
+<path class="w" d="M152 110H296"/>
+<path class="c" d="M444 110H516"/>
+<path class="c" d="M664 110H754"/>
+<path class="c" d="M370 150V214"/>
+<rect class="s" x="60" y="93" width="90" height="34" rx="8"/>
+<circle class="f" cx="78" cy="110" r="2.5"/>
+<circle class="f" cx="91" cy="110" r="2.5"/>
+<circle class="f" cx="104" cy="110" r="2.5"/>
+<path class="l" d="M124 93v-20M138 93v-20"/>
+<rect class="pi" x="300" y="70" width="140" height="80" rx="13.6"/>
+<circle class="af" cx="314" cy="86" r="3.6"/>
+<circle class="af" cx="330" cy="86" r="3.6"/>
+<circle class="af" cx="346" cy="86" r="3.6"/>
+<circle class="af" cx="362" cy="86" r="3.6"/>
+<circle class="af" cx="378" cy="86" r="3.6"/>
+<circle class="af" cx="394" cy="86" r="3.6"/>
+<circle class="af" cx="410" cy="86" r="3.6"/>
+<circle class="af" cx="426" cy="86" r="3.6"/>
+<rect class="a" x="356.4" y="104.4" width="27.2" height="27.2" rx="2"/>
+<rect class="s" x="518" y="80" width="144" height="60" rx="8"/>
+<path class="l" d="M532 110H648"/>
+<rect class="s" x="758" y="78" width="164" height="64" rx="11.5"/>
+<circle class="l" cx="780" cy="110" r="10"/>
+<circle class="f" cx="780" cy="110" r="2.2"/>
+<circle class="l" cx="804" cy="110" r="10"/>
+<circle class="f" cx="804" cy="110" r="2.2"/>
+<circle class="l" cx="828" cy="110" r="10"/>
+<circle class="f" cx="828" cy="110" r="2.2"/>
+<circle class="l" cx="852" cy="110" r="10"/>
+<circle class="f" cx="852" cy="110" r="2.2"/>
+<circle class="l" cx="876" cy="110" r="10"/>
+<circle class="f" cx="876" cy="110" r="2.2"/>
+<circle class="l" cx="900" cy="110" r="10"/>
+<circle class="f" cx="900" cy="110" r="2.2"/>
+<rect class="s" x="355" y="216" width="30" height="60" rx="9"/>
+<circle class="l" cx="370" cy="254.4" r="8.7"/>
+<circle class="f" cx="370" cy="230.4" r="3"/>
+<text class="t" x="105" y="152" font-size="14" text-anchor="middle" font-weight="600">Your router</text>
+<text class="m" x="224" y="98" font-size="12" text-anchor="middle">Ethernet or Wi-Fi</text>
+<text class="at" x="370" y="58" font-size="14" text-anchor="middle" font-weight="600">Raspberry Pi</text>
+<text class="t" x="590" y="58" font-size="14" text-anchor="middle" font-weight="600">Master Link interface</text>
+<text class="m" x="590" y="164" font-size="12" text-anchor="middle">with its sound card on board</text>
+<text class="m" x="480" y="98" font-size="11" text-anchor="middle">header + USB</text>
+<text class="m" x="709" y="98" font-size="12" text-anchor="middle">Master Link</text>
+<text class="t" x="840" y="164" font-size="14" text-anchor="middle" font-weight="600">Classic music system</text>
+<text class="t" x="400" y="242" font-size="14" font-weight="600">Optional: a speaker of its own</text>
+<text class="m" x="400" y="261" font-size="12">on the Pi's audio jack or a sound card</text>
+</svg>

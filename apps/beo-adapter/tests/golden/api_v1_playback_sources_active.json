@@ -1,0 +1,11 @@
+{
+  "id": "",
+  "name": "",
+  "type": {
+    "value": "unknown"
+  },
+  "isEnabled": true,
+  "isPlayable": true,
+  "isMultiroomAvailable": true,
+  "isSeekable": false
+}

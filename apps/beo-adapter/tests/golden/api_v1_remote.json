@@ -1,0 +1,72 @@
+{
+  "b0000000-0000-4000-8000-000000000001": {
+    "id": "b0000000-0000-4000-8000-000000000001",
+    "label": "MUSIC",
+    "available": true,
+    "fixed": true,
+    "disabled": false,
+    "dynamicList": "none",
+    "content": {
+      "contentUri": "",
+      "label": "MUSIC",
+      "categories": [
+        "music"
+      ],
+      "source": {
+        "value": "classicsAdapter"
+      }
+    },
+    "firstChildMenuItemId": "b0000000-0000-4000-8000-000000000002"
+  },
+  "b0000000-0000-4000-8000-000000000002": {
+    "id": "b0000000-0000-4000-8000-000000000002",
+    "label": "Classics Adapter",
+    "available": true,
+    "fixed": false,
+    "disabled": false,
+    "dynamicList": "none",
+    "parentMenuItemId": "b0000000-0000-4000-8000-000000000001",
+    "nextSiblingMenuItemId": "b0000000-0000-4000-8000-000000000003",
+    "content": {
+      "contentUri": "classicsAdapter",
+      "label": "Classics Adapter",
+      "categories": [
+        "music"
+      ],
+      "source": {
+        "value": "classicsAdapter"
+      }
+    },
+    "actionList": [
+      {
+        "type": "triggerContent",
+        "contentId": "classicsAdapter"
+      }
+    ]
+  },
+  "b0000000-0000-4000-8000-000000000003": {
+    "id": "b0000000-0000-4000-8000-000000000003",
+    "label": "Radio",
+    "available": true,
+    "fixed": false,
+    "disabled": false,
+    "dynamicList": "none",
+    "parentMenuItemId": "b0000000-0000-4000-8000-000000000001",
+    "content": {
+      "contentUri": "lineIn",
+      "label": "Radio",
+      "categories": [
+        "music"
+      ],
+      "source": {
+        "value": "lineIn"
+      }
+    },
+    "actionList": [
+      {
+        "type": "triggerContent",
+        "contentId": "lineIn"
+      }
+    ]
+  }
+}

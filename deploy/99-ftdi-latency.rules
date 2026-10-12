@@ -1,0 +1,4 @@
+# MasterDataTool v1: FTDI FT-X USB-UART on the MasterLink bus.
+# With the default 16 ms latency timer USB batches bytes and cuts telegrams at
+# arbitrary points; at 1 ms they arrive whole.
+ACTION=="add", SUBSYSTEM=="usb-serial", DRIVER=="ftdi_sio", ATTR{latency_timer}="1"

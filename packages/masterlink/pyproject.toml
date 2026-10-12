@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "beo-masterlink"
+version = "0.1.0"
+description = "Bang & Olufsen Master Link bus: telegram codec, serial transport, the music-system model and the source-centre role"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Tobias Laursen" }]
+dependencies = ["beo-product", "pyserial>=3.4"]
+
+[project.urls]
+Homepage = "https://github.com/djerik/beo"
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+# PEP 420 native namespace package: beo/ carries no __init__.py, so several
+# distributions can contribute to the same namespace. If any one of them ships
+# that file, the others stop being importable.
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["beo.masterlink*"]
+namespaces = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

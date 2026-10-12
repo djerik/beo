@@ -1,0 +1,20 @@
+[
+  {
+    "jid": "2730.1200322.99000101@products.bang-olufsen.com",
+    "friendlyName": "Test Speaker One",
+    "ipAddress": "203.0.113.11",
+    "productType": "BEOPLAY_M3"
+  },
+  {
+    "jid": "2730.1200322.99000102@products.bang-olufsen.com",
+    "friendlyName": "Test Speaker Two",
+    "ipAddress": "203.0.113.12",
+    "productType": "BEOPLAY_M3"
+  },
+  {
+    "jid": "3400.1200488.99000103@products.bang-olufsen.com",
+    "friendlyName": "Test Television",
+    "ipAddress": "203.0.113.13",
+    "productType": "BEOVISION_ECLIPSE"
+  }
+]

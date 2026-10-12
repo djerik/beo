@@ -1,0 +1,20 @@
+{
+  "mode": {
+    "list": [
+      {
+        "id": 1,
+        "friendlyName": "default",
+        "digit": 1,
+        "_links": {
+          "/relation/modify": {
+            "href": "./1"
+          },
+          "self": {
+            "href": "./1"
+          }
+        }
+      }
+    ],
+    "active": 1
+  }
+}

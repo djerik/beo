@@ -1,0 +1,73 @@
+{
+  "apple": {
+    "homeApp": false
+  },
+  "bootloader": {
+    "version": "1.9.0.30523"
+  },
+  "componentVersions": {
+    "items": [
+      {
+        "component": "SW",
+        "version": "1.9.0.30523"
+      }
+    ]
+  },
+  "encryptionInfo": {
+    "algorithm": "",
+    "keyLength": 0,
+    "publicKey": ""
+  },
+  "fep": {
+    "version": "1.9.0.30523"
+  },
+  "name": {
+    "friendlyName": "Classics Adapter (emu)"
+  },
+  "pcbRevisions": {
+    "items": []
+  },
+  "powerDelivery": {
+    "version": "1.0"
+  },
+  "production": {
+    "hardwareRevision": "1",
+    "itemNumber": "1454530",
+    "macAddresses": {
+      "macAddresses": [
+        {
+          "name": "ethernet",
+          "mac": "00:00:5E:00:53:01"
+        },
+        {
+          "name": "wlansta",
+          "mac": "00:00:5E:00:53:01"
+        }
+      ]
+    },
+    "productDefaultName": "Beolab 8",
+    "productionSite": "emulator",
+    "productionTimestamp": "2024-01-01T00:00:00Z",
+    "serialNumber": "99000100",
+    "typeNumber": "3150",
+    "wifiCountryCode": "DK"
+  },
+  "touch": {
+    "version": "1.9.0.30523"
+  },
+  "tv": {
+    "edid": {
+      "name": "",
+      "year": 0
+    },
+    "lge": {
+      "country": "",
+      "countryGroup": "",
+      "deviceId": "",
+      "firmwareVersion": "",
+      "language": "",
+      "screenSize": 0,
+      "webOsDialect": ""
+    }
+  }
+}

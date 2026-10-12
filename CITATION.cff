@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: beo
+abstract: >-
+  A Raspberry Pi that puts a classic Bang & Olufsen Master Link music system
+  in the Bang & Olufsen app and plays it on network speakers.
+authors:
+  - family-names: Laursen
+    given-names: Tobias
+repository-code: "https://github.com/djerik/beo"
+url: "https://github.com/djerik/beo"
+license: Apache-2.0
+version: 0.1.0

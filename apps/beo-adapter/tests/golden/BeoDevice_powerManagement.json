@@ -1,0 +1,35 @@
+{
+  "profile": {
+    "name": "powerManagementProfile",
+    "version": 1,
+    "_links": {
+      "self": {
+        "href": "./"
+      }
+    },
+    "powerManagement": {
+      "standby": {
+        "powerState": "standby",
+        "_capabilities": {
+          "editable": [
+            "powerState"
+          ],
+          "value": {
+            "powerState": [
+              "on",
+              "standby"
+            ]
+          }
+        },
+        "_links": {
+          "/relation/modify": {
+            "href": "./standby"
+          },
+          "self": {
+            "href": "./standby"
+          }
+        }
+      }
+    }
+  }
+}

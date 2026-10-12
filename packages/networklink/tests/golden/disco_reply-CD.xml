@@ -1,0 +1,1 @@
+<query xmlns='http://jabber.org/protocol/disco#info'><identity category='client' name='Reference Source' type='product'/><feature var='jid\20escaping'/><feature var='beocore.player.1'/><feature var='beocore.tunnel.1'/><feature var='beocore.product.1'/><feature var='beocore.configuration.1'/><feature var='beocore.notifications.1'/></query>

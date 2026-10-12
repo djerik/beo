@@ -1,0 +1,11 @@
+{
+  "beoNotify": {
+    "notifications": {
+      "_links": {
+        "self": {
+          "href": "./Notifications"
+        }
+      }
+    }
+  }
+}

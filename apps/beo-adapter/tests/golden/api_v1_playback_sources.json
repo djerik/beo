@@ -1,0 +1,81 @@
+{
+  "items": [
+    {
+      "id": "classicsAdapter://CD/1",
+      "name": "CD 1",
+      "type": {
+        "value": "classicsAdapter"
+      },
+      "isEnabled": true,
+      "isPlayable": true,
+      "isMultiroomAvailable": true,
+      "isSeekable": false
+    },
+    {
+      "id": "classicsAdapter://CD/2",
+      "name": "CD 2",
+      "type": {
+        "value": "classicsAdapter"
+      },
+      "isEnabled": true,
+      "isPlayable": true,
+      "isMultiroomAvailable": true,
+      "isSeekable": false
+    },
+    {
+      "id": "classicsAdapter://CD/3",
+      "name": "CD 3",
+      "type": {
+        "value": "classicsAdapter"
+      },
+      "isEnabled": true,
+      "isPlayable": true,
+      "isMultiroomAvailable": true,
+      "isSeekable": false
+    },
+    {
+      "id": "classicsAdapter://CD/4",
+      "name": "CD 4",
+      "type": {
+        "value": "classicsAdapter"
+      },
+      "isEnabled": true,
+      "isPlayable": true,
+      "isMultiroomAvailable": true,
+      "isSeekable": false
+    },
+    {
+      "id": "classicsAdapter://CD/5",
+      "name": "CD 5",
+      "type": {
+        "value": "classicsAdapter"
+      },
+      "isEnabled": true,
+      "isPlayable": true,
+      "isMultiroomAvailable": true,
+      "isSeekable": false
+    },
+    {
+      "id": "classicsAdapter://CD/6",
+      "name": "CD 6",
+      "type": {
+        "value": "classicsAdapter"
+      },
+      "isEnabled": true,
+      "isPlayable": true,
+      "isMultiroomAvailable": true,
+      "isSeekable": false
+    },
+    {
+      "id": "linein:3150.1454530.99000100@products.bang-olufsen.com",
+      "name": "Line-In",
+      "type": {
+        "value": "lineIn"
+      },
+      "isEnabled": true,
+      "isPlayable": true,
+      "isMultiroomAvailable": true,
+      "isSeekable": false
+    }
+  ]
+}

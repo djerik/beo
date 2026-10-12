@@ -1,0 +1,10 @@
+{
+  "advancedBeamforming": 0,
+  "ambience": 0.0,
+  "bass": 0,
+  "directivity": "omni",
+  "ecoMode": false,
+  "fadein": false,
+  "loudness": false,
+  "treble": 0
+}

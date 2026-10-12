@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "beo-adapter"
+version = "0.1.0"
+description = "A Raspberry Pi as a product the Bang & Olufsen app accepts, with or without a classic Master Link machine behind it"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Tobias Laursen" }]
+dependencies = ["beo-product", "beo-masterlink", "beo-networklink", "beo-mozart"]
+
+[project.urls]
+Homepage = "https://github.com/djerik/beo"
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[project.scripts]
+beo-adapter = "beo_adapter.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["beo_adapter*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,26 @@
+[Unit]
+Description=A product the Bang & Olufsen app accepts (Mozart facade, MasterLink, NetworkLink)
+Documentation=file:///etc/beo/product.env
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=@SRC@
+
+# Every setting lives in the configuration, so this unit is identical on every
+# installation and the installer never has to rewrite it. Edit the environment
+# file, not this.
+EnvironmentFile=/etc/beo/product.env
+Environment=PYTHONPATH=/opt/beo/python:@SRC@/packages/product:@SRC@/packages/masterlink:@SRC@/packages/networklink:@SRC@/packages/mozart:@SRC@/apps/beo-adapter
+# /opt/beo/python holds what the installer could not get new enough from the
+# system's packages; it is empty or absent where it could.
+Environment=PYTHONUNBUFFERED=1
+
+ExecStart=/usr/bin/python3 -m beo_adapter.main
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

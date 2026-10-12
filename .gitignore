@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# Test and tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local configuration and secrets: identities live on the device, not in git
+*.env
+!*.env.example
+product.env
+peers.json
+config.toml
+*.pem
+*.key
+*.crt
+
+# Recordings and private test data never leave the research tree
+captures/
+*.pcap
+*.pcapng
+*.jsonl
+tests/private/
+docs/measurements.md

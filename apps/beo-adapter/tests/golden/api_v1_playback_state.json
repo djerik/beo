@@ -1,0 +1,68 @@
+{
+  "state": {
+    "value": "idle"
+  },
+  "source": {
+    "id": "",
+    "name": "",
+    "type": {
+      "value": "unknown"
+    },
+    "isEnabled": true,
+    "isPlayable": true,
+    "isMultiroomAvailable": true,
+    "isSeekable": false
+  },
+  "progress": {
+    "id": "1",
+    "progress": 0,
+    "totalDuration": 240
+  },
+  "metadata": {
+    "albumName": "Kind of Blue",
+    "artistName": "Miles Davis",
+    "title": "CD 1 · So What",
+    "track": 1,
+    "trackCount": 5,
+    "totalDuration": 240,
+    "totalDurationSeconds": 240,
+    "art": [
+      {
+        "key": "512x512",
+        "size": "large",
+        "type": "image",
+        "hasLocalImage": false,
+        "url": "https://coverartarchive.org/release-group/8e8a594f-2175-38c7-a871-abb68ec363e7/front-500"
+      },
+      {
+        "key": "256x256",
+        "size": "medium",
+        "type": "image",
+        "hasLocalImage": false,
+        "url": "https://coverartarchive.org/release-group/8e8a594f-2175-38c7-a871-abb68ec363e7/front-500"
+      }
+    ],
+    "bitdepth": 16,
+    "bitrate": 1411,
+    "samplerate": 44100,
+    "containerName": "",
+    "encoding": "pcm",
+    "genre": "",
+    "id": 101,
+    "inputChannels": "2",
+    "outputChannels": "2",
+    "isExplicit": false,
+    "organization": "",
+    "queueId": "00000000-0000-0000-0000-000000000000",
+    "remoteLeader": {
+      "audioTransport": "",
+      "friendlyName": "",
+      "jid": ""
+    },
+    "remoteSource": "",
+    "source": "classicsAdapter",
+    "sourceInternalId": "cd1-1",
+    "tags": [],
+    "uri": "classicsAdapter://CD/1"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "services": [
+    {
+      "name": "BeoNotify",
+      "path": "BeoNotify/"
+    },
+    {
+      "name": "BeoZone",
+      "path": "BeoZone/"
+    },
+    {
+      "name": "BeoDevice",
+      "path": "BeoDevice/"
+    },
+    {
+      "name": "BeoContent",
+      "path": "BeoContent/"
+    },
+    {
+      "name": "BeoHome",
+      "path": "BeoHome/"
+    },
+    {
+      "name": "BeoSecurity",
+      "path": "BeoSecurity/"
+    },
+    {
+      "name": "Ping",
+      "path": "Ping"
+    }
+  ]
+}

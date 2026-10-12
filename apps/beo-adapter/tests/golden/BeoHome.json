@@ -1,0 +1,15 @@
+{
+  "beoHome": {
+    "profiles": [
+      {
+        "name": "triggerProfile",
+        "version": 1,
+        "_links": {
+          "self": {
+            "href": "./trigger/"
+          }
+        }
+      }
+    ]
+  }
+}

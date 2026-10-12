@@ -1,0 +1,8 @@
+{
+  "interfaces": [
+    {
+      "type": "wlan",
+      "macAddress": "00:00:5E:00:53:01"
+    }
+  ]
+}

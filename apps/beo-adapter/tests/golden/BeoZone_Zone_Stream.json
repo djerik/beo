@@ -1,0 +1,8 @@
+{
+  "features": [
+    "PAUSE",
+    "PLAY",
+    "SKIP",
+    "STOP"
+  ]
+}

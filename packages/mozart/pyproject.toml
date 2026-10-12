@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "beo-mozart"
+version = "0.1.0"
+description = "Be a Mozart product to the Bang & Olufsen app: api/v1, WebSocket notifications, mDNS"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Tobias Laursen" }]
+dependencies = ["beo-product", "zeroconf>=0.148.0"]
+
+[project.urls]
+Homepage = "https://github.com/djerik/beo"
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+# PEP 420 native namespace package: beo/ carries no __init__.py.
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["beo.mozart*"]
+namespaces = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 340" role="img" aria-label="A phone, a Raspberry Pi, a classic music system and network speakers, and how they are connected">
+<title>A phone, a Raspberry Pi, a classic music system and network speakers, and how they are connected</title>
+<style>
+.bg{fill:#f6f7f9}
+.s{fill:#ffffff;stroke:#1f2933;stroke-width:2;stroke-linejoin:round}
+.l{fill:none;stroke:#1f2933;stroke-width:2;stroke-linecap:round}
+.f{fill:#1f2933}
+.pi{fill:#fff4ec;stroke:#c2410c;stroke-width:2.5;stroke-linejoin:round}
+.a{fill:none;stroke:#c2410c;stroke-width:2;stroke-linecap:round}
+.af{fill:#c2410c}
+.w{fill:none;stroke:#6b7785;stroke-width:2;stroke-linecap:round;stroke-dasharray:2 7}
+.c{fill:none;stroke:#1f2933;stroke-width:2.5;stroke-linecap:round}
+text{font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;fill:#1f2933}
+.m{fill:#6b7785}
+.at{fill:#c2410c}
+@media (prefers-color-scheme:dark){
+.bg{fill:#161b22}
+.s{fill:#0d1117;stroke:#e6edf3}
+.l,.c{stroke:#e6edf3}
+.f{fill:#e6edf3}
+.pi{fill:#2a1a10;stroke:#f0883e}
+.a{stroke:#f0883e}
+.af,.at{fill:#f0883e}
+.w{stroke:#8b949e}
+text{fill:#e6edf3}
+.m{fill:#8b949e}
+}
+</style>
+<defs><marker id="e" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="af" d="M0 0 10 5 0 10z"/></marker><marker id="b" viewBox="0 0 10 10" refX="2" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="af" d="M10 0 0 5 10 10z"/></marker></defs>
+<rect class="bg" width="880" height="340" rx="14"/>
+<path class="w" d="M152 180H366"/>
+<path class="w" d="M514 164L712 96"/>
+<path class="c" d="M514 196L686 250"/>
+<rect class="s" x="60" y="100" width="90" height="160" rx="15.3"/>
+<circle class="f" cx="82.5" cy="138.4" r="6.8"/>
+<path class="l" d="M98.7 138.4H132"/>
+<circle class="f" cx="82.5" cy="170.4" r="6.8"/>
+<path class="l" d="M98.7 170.4H123"/>
+<circle class="f" cx="82.5" cy="202.4" r="6.8"/>
+<path class="l" d="M98.7 202.4H114"/>
+<path class="l" d="M92.4 244H117.6"/>
+<rect class="pi" x="370" y="140" width="140" height="80" rx="13.6"/>
+<circle class="af" cx="384" cy="156" r="3.6"/>
+<circle class="af" cx="400" cy="156" r="3.6"/>
+<circle class="af" cx="416" cy="156" r="3.6"/>
+<circle class="af" cx="432" cy="156" r="3.6"/>
+<circle class="af" cx="448" cy="156" r="3.6"/>
+<circle class="af" cx="464" cy="156" r="3.6"/>
+<circle class="af" cx="480" cy="156" r="3.6"/>
+<circle class="af" cx="496" cy="156" r="3.6"/>
+<rect class="a" x="426.4" y="174.4" width="27.2" height="27.2" rx="2"/>
+<rect class="s" x="718" y="48" width="40" height="84" rx="12"/>
+<circle class="l" cx="738" cy="101.8" r="11.6"/>
+<circle class="f" cx="738" cy="68.2" r="4"/>
+<rect class="s" x="778" y="48" width="40" height="84" rx="12"/>
+<circle class="l" cx="798" cy="101.8" r="11.6"/>
+<circle class="f" cx="798" cy="68.2" r="4"/>
+<rect class="s" x="688" y="218" width="164" height="64" rx="11.5"/>
+<circle class="l" cx="710" cy="250" r="10"/>
+<circle class="f" cx="710" cy="250" r="2.2"/>
+<circle class="l" cx="734" cy="250" r="10"/>
+<circle class="f" cx="734" cy="250" r="2.2"/>
+<circle class="l" cx="758" cy="250" r="10"/>
+<circle class="f" cx="758" cy="250" r="2.2"/>
+<circle class="l" cx="782" cy="250" r="10"/>
+<circle class="f" cx="782" cy="250" r="2.2"/>
+<circle class="l" cx="806" cy="250" r="10"/>
+<circle class="f" cx="806" cy="250" r="2.2"/>
+<circle class="l" cx="830" cy="250" r="10"/>
+<circle class="f" cx="830" cy="250" r="2.2"/>
+<text class="t" x="105" y="286" font-size="14" text-anchor="middle" font-weight="600">The app on your phone</text>
+<text class="at" x="440" y="246" font-size="14" text-anchor="middle" font-weight="600">Raspberry Pi</text>
+<text class="m" x="440" y="265" font-size="12" text-anchor="middle">running beo-adapter</text>
+<text class="t" x="768" y="156" font-size="14" text-anchor="middle" font-weight="600">Network speakers</text>
+<text class="t" x="770" y="308" font-size="14" text-anchor="middle" font-weight="600">Classic music system</text>
+<text class="m" x="259" y="168" font-size="12" text-anchor="middle">home network</text>
+<text class="m" x="596" y="108" font-size="12" text-anchor="middle">home network</text>
+<text class="m" x="578" y="258" font-size="12" text-anchor="middle">Master Link cable</text>
+</svg>

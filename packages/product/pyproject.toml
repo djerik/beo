@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "beo-product"
+version = "0.1.0"
+description = "What a Bang & Olufsen product is: identity, sources, play state, volume. Types only, no I/O"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Tobias Laursen" }]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/djerik/beo"
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+# PEP 420 native namespace package: beo/ carries no __init__.py.
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["beo.product*"]
+namespaces = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

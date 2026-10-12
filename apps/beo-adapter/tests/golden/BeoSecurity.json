@@ -1,0 +1,9 @@
+{
+  "Sessions": {
+    "_links": {
+      "self": {
+        "href": "./Sessions"
+      }
+    }
+  }
+}

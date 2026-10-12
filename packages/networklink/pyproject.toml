@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "beo-networklink"
+version = "0.1.0"
+description = "Bang & Olufsen NetworkLink: beocore XMPP sessions, FPS audio transport, PTP, mDNS discovery, the source and listener roles, the shared configuration and the nSDK client"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Tobias Laursen" }]
+dependencies = ["beo-product", "zeroconf>=0.148.0"]
+
+[project.urls]
+Homepage = "https://github.com/djerik/beo"
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+# PEP 420 native namespace package: beo/ carries no __init__.py, so several
+# distributions can contribute to the same namespace. If any one of them ships
+# that file, the others stop being importable.
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["beo.networklink*"]
+namespaces = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,13 @@
+{
+  "level": 40,
+  "_capabilities": {
+    "editable": [
+      "level"
+    ]
+  },
+  "_links": {
+    "/relation/modify": {
+      "href": "./"
+    }
+  }
+}

@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 150" role="img" aria-label="The app controls the classic music system through the Raspberry Pi">
+<title>The app controls the classic music system through the Raspberry Pi</title>
+<style>
+.bg{fill:#f6f7f9}
+.s{fill:#ffffff;stroke:#1f2933;stroke-width:2;stroke-linejoin:round}
+.l{fill:none;stroke:#1f2933;stroke-width:2;stroke-linecap:round}
+.f{fill:#1f2933}
+.pi{fill:#fff4ec;stroke:#c2410c;stroke-width:2.5;stroke-linejoin:round}
+.a{fill:none;stroke:#c2410c;stroke-width:2;stroke-linecap:round}
+.af{fill:#c2410c}
+.w{fill:none;stroke:#6b7785;stroke-width:2;stroke-linecap:round;stroke-dasharray:2 7}
+.c{fill:none;stroke:#1f2933;stroke-width:2.5;stroke-linecap:round}
+text{font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;fill:#1f2933}
+.m{fill:#6b7785}
+.at{fill:#c2410c}
+@media (prefers-color-scheme:dark){
+.bg{fill:#161b22}
+.s{fill:#0d1117;stroke:#e6edf3}
+.l,.c{stroke:#e6edf3}
+.f{fill:#e6edf3}
+.pi{fill:#2a1a10;stroke:#f0883e}
+.a{stroke:#f0883e}
+.af,.at{fill:#f0883e}
+.w{stroke:#8b949e}
+text{fill:#e6edf3}
+.m{fill:#8b949e}
+}
+</style>
+<defs><marker id="e" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="af" d="M0 0 10 5 0 10z"/></marker><marker id="b" viewBox="0 0 10 10" refX="2" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="af" d="M10 0 0 5 10 10z"/></marker></defs>
+<rect class="bg" width="360" height="150" rx="14"/>
+<rect class="s" x="32" y="27" width="40" height="70" rx="6.8"/>
+<circle class="f" cx="42" cy="43.8" r="3"/>
+<path class="l" d="M49.2 43.8H64"/>
+<circle class="f" cx="42" cy="57.8" r="3"/>
+<path class="l" d="M49.2 57.8H60"/>
+<circle class="f" cx="42" cy="71.8" r="3"/>
+<path class="l" d="M49.2 71.8H56"/>
+<path class="l" d="M46.4 90H57.6"/>
+<rect class="pi" x="142" y="44" width="56" height="36" rx="6.1"/>
+<circle class="af" cx="147.6" cy="51.2" r="1.6"/>
+<circle class="af" cx="154" cy="51.2" r="1.6"/>
+<circle class="af" cx="160.4" cy="51.2" r="1.6"/>
+<circle class="af" cx="166.8" cy="51.2" r="1.6"/>
+<circle class="af" cx="173.2" cy="51.2" r="1.6"/>
+<circle class="af" cx="179.6" cy="51.2" r="1.6"/>
+<circle class="af" cx="186" cy="51.2" r="1.6"/>
+<circle class="af" cx="192.4" cy="51.2" r="1.6"/>
+<rect class="a" x="163.9" y="59.5" width="12.2" height="12.2" rx="2"/>
+<rect class="s" x="260" y="45" width="80" height="34" rx="6.1"/>
+<circle class="l" cx="272" cy="62" r="4.6"/>
+<circle class="f" cx="272" cy="62" r="1"/>
+<circle class="l" cx="283.2" cy="62" r="4.6"/>
+<circle class="f" cx="283.2" cy="62" r="1"/>
+<circle class="l" cx="294.4" cy="62" r="4.6"/>
+<circle class="f" cx="294.4" cy="62" r="1"/>
+<circle class="l" cx="305.6" cy="62" r="4.6"/>
+<circle class="f" cx="305.6" cy="62" r="1"/>
+<circle class="l" cx="316.8" cy="62" r="4.6"/>
+<circle class="f" cx="316.8" cy="62" r="1"/>
+<circle class="l" cx="328" cy="62" r="4.6"/>
+<circle class="f" cx="328" cy="62" r="1"/>
+<path class="a" d="M84 62L132 62" marker-end="url(#e)" marker-start="url(#b)"/>
+<path class="a" d="M208 62L250 62" marker-end="url(#e)" marker-start="url(#b)"/>
+<text class="m" x="52" y="128" font-size="12" text-anchor="middle">the app</text>
+<text class="m" x="170" y="128" font-size="12" text-anchor="middle">Raspberry Pi</text>
+<text class="m" x="300" y="128" font-size="12" text-anchor="middle">classic system</text>
+<text class="at" x="108" y="52" font-size="11" text-anchor="middle">control</text>
+<text class="at" x="229" y="52" font-size="11" text-anchor="middle">control</text>
+</svg>

@@ -1,0 +1,54 @@
+{
+  "sources": [
+    [
+      "CD:3150.1454530.99000100@products.bang-olufsen.com",
+      {
+        "id": "CD:3150.1454530.99000100@products.bang-olufsen.com",
+        "friendlyName": "Beosound 9000",
+        "sourceType": {
+          "type": "CD"
+        },
+        "category": "MUSIC",
+        "inUse": true,
+        "profile": "",
+        "borrowed": false,
+        "linkable": true,
+        "recommendedIrMapping": [
+          {
+            "format": 0,
+            "unit": 0,
+            "command": 146
+          },
+          {
+            "format": 11,
+            "unit": 0,
+            "command": 146
+          }
+        ],
+        "contentProtection": {
+          "schemeList": [
+            "NONE"
+          ]
+        },
+        "embeddedBinary": {
+          "schemeList": []
+        },
+        "product": {
+          "jid": "3150.1454530.99000100@products.bang-olufsen.com",
+          "friendlyName": "Classics Adapter (emu)"
+        },
+        "jid": "3150.1454530.99000100@products.bang-olufsen.com",
+        "_capabilities": {
+          "editable": [
+            "friendlyName"
+          ]
+        },
+        "_links": {
+          "self": {
+            "href": "./CD%3A3150.1454530.99000100%40products.bang-olufsen.com"
+          }
+        }
+      }
+    ]
+  ]
+}

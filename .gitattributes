@@ -1,0 +1,3 @@
+# The Pi runs the scripts as they are checked out, and a shell does not read
+# a script with Windows line ends, so every text file keeps Unix ones.
+* text=auto eol=lf

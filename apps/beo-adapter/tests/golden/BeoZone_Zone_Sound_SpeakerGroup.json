@@ -1,0 +1,25 @@
+{
+  "speakerGroup": {
+    "list": [
+      {
+        "id": 1,
+        "friendlyName": "SpeakerGroup HH1",
+        "digit": 1,
+        "_capabilities": {
+          "editable": [
+            "friendlyName"
+          ]
+        },
+        "_links": {
+          "/relation/modify": {
+            "href": "./1"
+          },
+          "self": {
+            "href": "./1"
+          }
+        }
+      }
+    ],
+    "active": 1
+  }
+}

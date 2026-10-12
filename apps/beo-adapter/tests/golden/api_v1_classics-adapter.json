@@ -1,0 +1,7 @@
+{
+  "firmwareVersion": "1.0.5",
+  "protocolVersion": 1,
+  "serialNumber": "12345678",
+  "state": "ready",
+  "wifiMacAddress": "00:00:5E:00:53:01"
+}

@@ -1,0 +1,14 @@
+{
+  "id": "classicsAdapter://CD/1",
+  "contentUri": "classicsAdapter://CD/1",
+  "label": "CD 1",
+  "originalLabel": "CD 1",
+  "available": true,
+  "categories": [
+    "music"
+  ],
+  "source": {
+    "id": "classicsAdapter",
+    "value": "classicsAdapter"
+  }
+}

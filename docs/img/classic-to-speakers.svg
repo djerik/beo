@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 150" role="img" aria-label="The classic music system's sound plays on network speakers">
+<title>The classic music system's sound plays on network speakers</title>
+<style>
+.bg{fill:#f6f7f9}
+.s{fill:#ffffff;stroke:#1f2933;stroke-width:2;stroke-linejoin:round}
+.l{fill:none;stroke:#1f2933;stroke-width:2;stroke-linecap:round}
+.f{fill:#1f2933}
+.pi{fill:#fff4ec;stroke:#c2410c;stroke-width:2.5;stroke-linejoin:round}
+.a{fill:none;stroke:#c2410c;stroke-width:2;stroke-linecap:round}
+.af{fill:#c2410c}
+.w{fill:none;stroke:#6b7785;stroke-width:2;stroke-linecap:round;stroke-dasharray:2 7}
+.c{fill:none;stroke:#1f2933;stroke-width:2.5;stroke-linecap:round}
+text{font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;fill:#1f2933}
+.m{fill:#6b7785}
+.at{fill:#c2410c}
+@media (prefers-color-scheme:dark){
+.bg{fill:#161b22}
+.s{fill:#0d1117;stroke:#e6edf3}
+.l,.c{stroke:#e6edf3}
+.f{fill:#e6edf3}
+.pi{fill:#2a1a10;stroke:#f0883e}
+.a{stroke:#f0883e}
+.af,.at{fill:#f0883e}
+.w{stroke:#8b949e}
+text{fill:#e6edf3}
+.m{fill:#8b949e}
+}
+</style>
+<defs><marker id="e" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="af" d="M0 0 10 5 0 10z"/></marker><marker id="b" viewBox="0 0 10 10" refX="2" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="af" d="M10 0 0 5 10 10z"/></marker></defs>
+<rect class="bg" width="360" height="150" rx="14"/>
+<rect class="s" x="26" y="45" width="80" height="34" rx="6.1"/>
+<circle class="l" cx="38" cy="62" r="4.6"/>
+<circle class="f" cx="38" cy="62" r="1"/>
+<circle class="l" cx="49.2" cy="62" r="4.6"/>
+<circle class="f" cx="49.2" cy="62" r="1"/>
+<circle class="l" cx="60.4" cy="62" r="4.6"/>
+<circle class="f" cx="60.4" cy="62" r="1"/>
+<circle class="l" cx="71.6" cy="62" r="4.6"/>
+<circle class="f" cx="71.6" cy="62" r="1"/>
+<circle class="l" cx="82.8" cy="62" r="4.6"/>
+<circle class="f" cx="82.8" cy="62" r="1"/>
+<circle class="l" cx="94" cy="62" r="4.6"/>
+<circle class="f" cx="94" cy="62" r="1"/>
+<rect class="pi" x="158" y="44" width="56" height="36" rx="6.1"/>
+<circle class="af" cx="163.6" cy="51.2" r="1.6"/>
+<circle class="af" cx="170" cy="51.2" r="1.6"/>
+<circle class="af" cx="176.4" cy="51.2" r="1.6"/>
+<circle class="af" cx="182.8" cy="51.2" r="1.6"/>
+<circle class="af" cx="189.2" cy="51.2" r="1.6"/>
+<circle class="af" cx="195.6" cy="51.2" r="1.6"/>
+<circle class="af" cx="202" cy="51.2" r="1.6"/>
+<circle class="af" cx="208.4" cy="51.2" r="1.6"/>
+<rect class="a" x="179.9" y="59.5" width="12.2" height="12.2" rx="2"/>
+<rect class="s" x="274" y="34" width="28" height="56" rx="8.4"/>
+<circle class="l" cx="288" cy="69.8" r="8.1"/>
+<circle class="f" cx="288" cy="47.4" r="2.8"/>
+<rect class="s" x="310" y="34" width="28" height="56" rx="8.4"/>
+<circle class="l" cx="324" cy="69.8" r="8.1"/>
+<circle class="f" cx="324" cy="47.4" r="2.8"/>
+<path class="a" d="M114 62L150 62" marker-end="url(#e)"/>
+<path class="a" d="M222 62L264 62" marker-end="url(#e)"/>
+<text class="m" x="66" y="128" font-size="12" text-anchor="middle">classic system</text>
+<text class="m" x="186" y="128" font-size="12" text-anchor="middle">Raspberry Pi</text>
+<text class="m" x="306" y="128" font-size="12" text-anchor="middle">network speakers</text>
+<text class="at" x="132" y="52" font-size="11" text-anchor="middle">sound</text>
+<text class="at" x="243" y="52" font-size="11" text-anchor="middle">sound</text>
+</svg>
