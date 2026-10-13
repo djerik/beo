@@ -451,8 +451,10 @@ fi
 echo "== service"
 # Which version this is, for the service to say in its log. Asked here, by
 # whoever owns the clone: the service runs as root, and git answers root
-# nothing about a repository that is somebody else's.
-VERSION="$(git -C "$SRC" describe --tags --always --dirty 2>/dev/null || echo unknown)"
+# nothing about a repository that is somebody else's. A copy from a
+# development machine is no clone, so whoever made it says which version it
+# is, in BEO_VERSION.
+VERSION="${BEO_VERSION:-$(git -C "$SRC" describe --tags --always --dirty 2>/dev/null || echo unknown)}"
 echo "$VERSION" | sudo tee "$CONF_DIR/version" >/dev/null
 echo "   version $VERSION"
 sed "s#@SRC@#$SRC#g" "$SRC/deploy/beo-adapter.service" | sudo tee "$UNIT" >/dev/null

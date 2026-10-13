@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import io
 import os
+import shlex
 import subprocess
 import sys
 import tarfile
@@ -102,6 +103,20 @@ def backup_cmd() -> str:
         % {"bak": BACKUP_DIR, "remote": REMOTE, "keepn": KEEP + 1})
 
 
+def version() -> str:
+    """What this checkout is, as git says it. The copy carries no .git, so the
+    installer on the Pi cannot ask for itself."""
+    for root in REPOS.values():
+        try:
+            p = subprocess.run(["git", "-C", root, "describe", "--tags", "--always", "--dirty"],
+                               capture_output=True, text=True, timeout=30)
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        if p.returncode == 0 and p.stdout.strip():
+            return p.stdout.strip()
+    return ""
+
+
 def ssh(cmd: str, stdin: bytes = None, timeout: int = 600, tty: bool = False) -> int:
     """tty: give the command a terminal on the Pi, so that it can ask."""
     args = ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=20"]
@@ -136,7 +151,7 @@ def main() -> int:
         # With somebody at the keyboard the installer gets a terminal and
         # no time limit: a question waits for as long as its answer takes.
         asking = sys.stdin.isatty()
-        return ssh("bash %s/beo/deploy/install.sh" % REMOTE,
+        return ssh("BEO_VERSION=%s bash %s/beo/deploy/install.sh" % (shlex.quote(version()), REMOTE),
                    timeout=None if asking else 900, tty=asking)
     print("copied. The service still runs the code it started with; "
           "run without --copy to install and restart it.")
