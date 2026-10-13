@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,12 +8,24 @@ version = "0.1.0"
 description = "Be a Mozart product to the Bang & Olufsen app: api/v1, WebSocket notifications, mDNS"
 readme = "README.md"
 requires-python = ">=3.9"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "Tobias Laursen" }]
-dependencies = ["beo-product", "zeroconf>=0.148.0"]
+keywords = ["bang-olufsen", "beolink", "mozart", "multiroom"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Home Automation",
+    "Topic :: Multimedia :: Sound/Audio",
+    "Typing :: Typed",
+]
+dependencies = ["beo-product>=0.1,<0.2", "zeroconf>=0.148.0"]
 
 [project.urls]
 Homepage = "https://github.com/djerik/beo"
+Repository = "https://github.com/djerik/beo"
 
 [project.optional-dependencies]
 test = ["pytest>=7"]
@@ -23,6 +35,9 @@ test = ["pytest>=7"]
 where = ["."]
 include = ["beo.mozart*"]
 namespaces = true
+
+[tool.setuptools.package-data]
+"beo.mozart" = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

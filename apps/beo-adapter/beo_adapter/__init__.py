@@ -12,4 +12,3 @@
 The protocols live in the beo packages. This application chooses which of them
 to wire together, from the configuration.
 """
-__version__ = "0.1.0"

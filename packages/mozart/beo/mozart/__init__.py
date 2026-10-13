@@ -9,11 +9,9 @@ docs/app-protocol.md.
 """
 from __future__ import annotations
 
-__version__ = "0.1.0"
-
 from .facade import run
 from .profile import (DEFAULT_TYPE, MOZART_TYPES, REMOTE_ROOT_ID, MozartType,
                       ProductProfile, mozart_type)
 
-__all__ = ["__version__", "run", "DEFAULT_TYPE", "MOZART_TYPES", "REMOTE_ROOT_ID",
+__all__ = ["run", "DEFAULT_TYPE", "MOZART_TYPES", "REMOTE_ROOT_ID",
            "MozartType", "ProductProfile", "mozart_type"]

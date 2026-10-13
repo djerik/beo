@@ -3,7 +3,7 @@
 A Raspberry Pi as a Bang & Olufsen product.
 
 This is the application the installer starts. The protocols live in the
-[`beo` packages](../../packages); this chooses which of them to wire together,
+[`beo` packages](https://github.com/djerik/beo/tree/main/packages); this chooses which of them to wire together,
 from the configuration, and holds the little that is specific to one machine.
 
 ## What it can be
@@ -48,7 +48,7 @@ remote-control presses.
 
 Listening is off unless `BEO_LISTEN` is set, and the product adds itself to
 the network's shared configuration only when `BEO_ENROL` is set;
-[docs/configuration.md](../../docs/configuration.md) says what each does. When a stream
+[docs/configuration.md](https://github.com/djerik/beo/blob/main/docs/configuration.md) says what each does. When a stream
 arrives the machine is asked to play a network source first, and the sound
 card is opened only once it has agreed. A card set in `BEO_SPEAKER_DEVICE`
 plays the stream without asking anybody, with a machine or without.

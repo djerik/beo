@@ -9,8 +9,6 @@ wire.
 """
 from __future__ import annotations
 
-__version__ = "0.1.0"
-
 from beo.product.identity import DOMAIN, ProductIdentity
 from .sources import (Catalog, Experience, IrMapping, NowPlaying, SourceDescriptor,
                       StatusBuilder, Volume, SOURCES, STANDARD, STANDARD_SOURCES)
@@ -23,7 +21,7 @@ from .nsdk import FpsdLog, NsdkClient
 from .roles import SourceRole
 
 __all__ = [
-    "__version__", "DOMAIN", "ProductIdentity",
+    "DOMAIN", "ProductIdentity",
     "Catalog", "Experience", "IrMapping", "NowPlaying", "SourceDescriptor",
     "StatusBuilder", "Volume", "SOURCES", "STANDARD", "STANDARD_SOURCES",
     "IdCounter", "Session", "Stanza",

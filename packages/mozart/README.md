@@ -4,7 +4,7 @@ What the Bang & Olufsen app talks to. Serve this and a product appears in the
 app, with its sources, transport controls, volume and multiroom.
 
 What the app requires, and why each answer is shaped as it is, is written up
-in [docs/app-protocol.md](../../docs/app-protocol.md); the code's comments
+in [docs/app-protocol.md](https://github.com/djerik/beo/blob/main/docs/app-protocol.md); the code's comments
 point into it by section.
 
 The package speaks to no other product and opens no sound card. What the
@@ -23,6 +23,6 @@ default is a plain speaker. An application passes its own:
 
 The tests here cover the profile catalogue. The suite that guards what
 the app sees lives with the application that owns the only verified profile,
-[`apps/beo-adapter`](../../apps/beo-adapter): a recorded answer per route, and a named test per bug that
+[`apps/beo-adapter`](https://github.com/djerik/beo/tree/main/apps/beo-adapter): a recorded answer per route, and a named test per bug that
 actually happened against the real app, so a failure says what breaks rather
 than only that the JSON moved.
