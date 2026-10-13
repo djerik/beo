@@ -154,7 +154,7 @@ class Session(threading.Thread):
         # Learned from the first stanza the peer sends, unless given.
         self.peer_jid = peer_jid
         self.sock = None
-        self.replies = {}
+        self.replies: dict[str, str] = {}
         self.ids = ids or IdCounter()
         self.tap = tap
         self.lines: Optional[List[tuple]] = [] if keep_lines else None

@@ -240,7 +240,7 @@ def ml_select_disc(n):
 
 # Whoever the app has told us to expand to. The app reads the result out of
 # our own listener list, so it has to be remembered (docs/app-protocol.md §9).
-_beolink_listeners = []
+_beolink_listeners: list[str] = []
 
 # Starts in standby: the bus does not say whether a silent 9000 is on, and a
 # product shown as "on" gets a standby press from the app's power button. The
@@ -698,7 +698,7 @@ def content_items(start_with=""):
 
 # Labels the app has renamed via PUT api/v1/remote/{id}; a real product
 # persists them (docs/app-protocol.md §3).
-_remote_labels = {}
+_remote_labels: dict[str, str] = {}
 
 
 def remote_menu():
