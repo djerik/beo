@@ -374,14 +374,20 @@ class MusicSystem:
     def _digit_then_disc(self, n: int, timeout: float) -> bool:
         """Press the digit and wait for a 0x87 with disc n and a known track.
         False on silence; a disc change to another disc is a failure, because
-        the machine heard the digit and had nothing in slot n."""
+        the machine heard the digit and had nothing in slot n.
+
+        The machine names the new disc at once and its track only when the
+        mechanics are done, which can take longer than the wait. Disc n with
+        the track still unknown therefore counts when the wait ends without
+        the machine moving on to another disc."""
+        named = False
         with self.bus.expect(self._status_pred(lambda s: s.disc is not None)) as w:
             self._press(Beo4(n), gap_s=0)
             deadline = time.monotonic() + timeout
             while True:
                 left = deadline - time.monotonic()
                 if left <= 0:
-                    return False
+                    return named
                 tg = w.result(min(left, 0.2))
                 if tg is None:
                     if self._abort_current.is_set():
@@ -391,6 +397,8 @@ class MusicSystem:
                 if si and si.disc == n and si.track is not None:
                     time.sleep(0.05)
                     return True
+                if si and si.disc == n:
+                    named = True
                 if si and si.changed_disc and si.disc != n:
                     raise OperationFailed("select_disc(%d): the machine went to disc %d instead" % (n, si.disc))
 

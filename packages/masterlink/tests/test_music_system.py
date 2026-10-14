@@ -31,9 +31,10 @@ class Machine:
     the machine goes to disc 1 instead.
     """
 
-    def __init__(self, listening: bool = True):
+    def __init__(self, listening: bool = True, slow_mechanics: bool = False):
         self.disc, self.track, self.state = 1, 3, 0x02
         self.listening = listening
+        self.slow_mechanics = slow_mechanics      # the track comes later than any wait
         self.cd_window = False
 
     def __call__(self, sent: Telegram):
@@ -69,6 +70,8 @@ class Machine:
                 return [status(1, None, 0x02, 0x02), status(1, 1, 0x02, 0x08)]
             old_track = self.track
             self.disc, self.track = int(key), 1
+            if self.slow_mechanics:
+                return [status(self.disc, None, 0x02, 0x0A), status(self.disc, None, 0x02, 0x00)]
             if direct:
                 # new disc with the old track first, the first track once the mechanics are done
                 return [status(self.disc, old_track, 0x02, 0x02), status(self.disc, 1, 0x02, 0x08)]
@@ -82,9 +85,9 @@ def quick(standby_delay_s: float = 0.02) -> MusicSystemProfile:
                                          confirm_timeout_s=1.0, digit_timeout_s=0.1))
 
 
-def make(fake_bus, listening: bool = True, standby_delay_s: float = 0.02):
+def make(fake_bus, listening: bool = True, standby_delay_s: float = 0.02, slow_mechanics: bool = False):
     bus, tr = fake_bus
-    m = Machine(listening)
+    m = Machine(listening, slow_mechanics)
     tr.responder = m
     p = MusicSystem(bus, quick(standby_delay_s), digit_gap_s=0.0, press_timeout_s=1.0)
     p.start()
@@ -109,6 +112,13 @@ def test_select_disc_by_a_bare_digit(fake_bus):
     st = p.select_disc(2).result(timeout=3)
     assert st.disc == 2
     assert keys_sent(tr) == [Beo4.DIGIT_2]
+
+
+def test_a_disc_named_before_its_track_is_selected(fake_bus):
+    p, m, tr = make(fake_bus, slow_mechanics=True)
+    st = p.select_disc(2).result(timeout=3)
+    assert st.disc == 2
+    assert keys_sent(tr) == [Beo4.DIGIT_2]          # no standby route
 
 
 def test_select_disc_falls_back_to_the_standby_route(fake_bus):
