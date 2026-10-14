@@ -95,23 +95,37 @@ sys.exit(1 if bad else 0)
 PY
 
 echo "== MasterLink interface"
-ML_PORT=""
-if [ -e /dev/ttyUSB0 ]; then
-  ML_PORT=/dev/ttyUSB0
-  echo "   found a USB serial port at $ML_PORT (MasterDataTool v1)"
+# Only USB serial ports are looked for. The Pi's own UART is there on every
+# Pi, wired to something or not, so its being there says nothing.
+ML_PORTS="$(ls /dev/ttyUSB* /dev/ttyACM* 2>/dev/null | tr '\n' ' ')"
+ML_PORT="${ML_PORTS%% *}"
+if [ -n "$ML_PORT" ]; then
+  echo "   found a USB serial port at $ML_PORT"
+  [ "$ML_PORT " = "$ML_PORTS" ] || echo "   (and more: $ML_PORTS; the first is taken unless named below)"
   sudo install -m 644 "$SRC/deploy/99-ftdi-latency.rules" /etc/udev/rules.d/ 2>/dev/null || true
   sudo udevadm control --reload-rules 2>/dev/null || true
   # At the default 16 ms the USB stack batches bytes and cuts telegrams at
   # arbitrary points. At 1 ms they arrive whole.
-  if [ -e /sys/bus/usb-serial/devices/ttyUSB0/latency_timer ]; then
-    echo 1 | sudo tee /sys/bus/usb-serial/devices/ttyUSB0/latency_timer >/dev/null
+  LATENCY="/sys/bus/usb-serial/devices/${ML_PORT#/dev/}/latency_timer"
+  if [ -e "$LATENCY" ]; then
+    echo 1 | sudo tee "$LATENCY" >/dev/null
     echo "   latency timer set to 1 ms"
   fi
 else
-  echo "   none found. Installing as a product with no machine behind it,"
-  echo "   which is a supported way to run: the app sees the product, there is"
-  echo "   simply nothing on the other side of it yet."
+  echo "   none found. Unless one is named below, the product is installed with"
+  echo "   no bus behind it, which is a supported way to run: the app sees the"
+  echo "   product, there is simply nothing on the other side of it yet."
 fi
+
+choose_ml_port() {   # -> ML_PORT: the bus's serial port, or nothing for no bus
+  local p
+  p="$(ask "   the serial port the MasterLink interface is on (a path, or none)" "${ML_PORT:-none}")"
+  while [ "$p" != "none" ] && [ ! -e "$p" ]; do
+    echo "   there is nothing at $p"
+    p="$(ask "   the serial port the MasterLink interface is on (a path, or none)" "none")"
+  done
+  if [ "$p" = "none" ]; then ML_PORT=""; else ML_PORT="$p"; fi
+}
 
 # Cards are named and never numbered: with more than one, the order they come
 # up in is not the same on every start. The sound of a display is left out:
@@ -273,6 +287,24 @@ if [ -f "$CONF" ]; then
   if [ -z "$MACHINE" ]; then
     case "$(conf_get BEO_BACKEND)" in none|no|off) MACHINE=none ;; *) MACHINE=bs9000 ;; esac
   fi
+  # A bus port that is not there stops the service from starting at all, so
+  # it is asked about again rather than left for the log to say.
+  case "$(conf_get BEO_BACKEND)" in none|no|off) ;; *)
+    if [ "$MACHINE" != "none" ]; then
+      CONF_PORT="$(conf_get BEO_ML_PORT)"
+      CONF_PORT="${CONF_PORT:-/dev/ttyUSB0}"
+      if [ "$CONF_PORT" != "none" ] && [ ! -e "$CONF_PORT" ]; then
+        echo "   BEO_ML_PORT is $CONF_PORT, and there is nothing there"
+        choose_ml_port
+        if [ -n "$ML_PORT" ]; then
+          conf_set BEO_ML_PORT "$ML_PORT"
+        else
+          conf_set BEO_BACKEND none
+          echo "   no bus: the app shows the machine, and nothing reaches it"
+        fi
+      fi
+    fi ;;
+  esac
   MACHINE_CARD=""
   if [ "$MACHINE" != "none" ]; then
     MACHINE_CARD="$(conf_get BEO_PLAYBACK_DEVICE | sed -n 's/.*CARD=\([^,]*\).*/\1/p')"
@@ -359,7 +391,14 @@ print(99000000 + int(hashlib.sha256(seed.encode()).hexdigest()[:12], 16) % 10000
     SUGGESTED="$(PYTHONPATH="$CODE" python3 -c 'import sys; from beo.masterlink.profiles import PROFILES; print(PROFILES[sys.argv[1]].name)' "$MACHINE")"
   fi
   NAME="$(ask '   what should this product be called in the app' "$SUGGESTED")"
-  if [ "$MACHINE" = "none" ]; then BACKEND=none; BEOLINK=0; else BACKEND=masterlink; BEOLINK=1; fi
+  # A machine with no bus to it is still drawn as that machine; commands to
+  # it go nowhere until a port is named in the configuration.
+  if [ "$MACHINE" != "none" ]; then
+    choose_ml_port
+    [ -n "$ML_PORT" ] || echo "   no bus: the app shows the machine, and nothing reaches it"
+  fi
+  if [ "$MACHINE" = "none" ]; then BEOLINK=0; else BEOLINK=1; fi
+  if [ "$MACHINE" != "none" ] && [ -n "$ML_PORT" ]; then BACKEND=masterlink; else BACKEND=none; fi
 
   # The card a machine is wired to is the machine's. Any other can play what
   # other products send to this one to a speaker directly, and with no
@@ -412,7 +451,7 @@ BEO_MACHINE=$MACHINE
 
 # masterlink = the machine is on the bus. none = no bus attached.
 BEO_BACKEND=$BACKEND
-BEO_ML_PORT=${ML_PORT:-/dev/ttyUSB0}
+BEO_ML_PORT=${ML_PORT:-none}
 
 # Stream this product's sound to other speakers, which needs a capture
 # device. Listening to other products is built on it too.

@@ -156,6 +156,13 @@ def main(argv=None) -> int:
 
     if machine is None or a.ml.strip().lower() in _OFF:
         backend = NoMachine()
+    elif not os.path.exists(a.ml):
+        # Left to the serial library, this is a traceback that names neither
+        # the setting nor the way out.
+        log.error("there is no MasterLink interface at %s. Name the right port in "
+                  "BEO_ML_PORT in /etc/beo/product.env, or set BEO_BACKEND=none to run "
+                  "with no bus, then restart the service", a.ml)
+        return 1
     else:
         backend = machine.bridge(a.ml, source_center=not a.no_source_center)
         backend.start()
