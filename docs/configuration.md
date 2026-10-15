@@ -73,7 +73,9 @@ listens on ports 5222 and 1234 and announces itself to the other products.
 With a machine behind it the stream is played into the machine, which is
 offered it as N.MUSIC. With `BEO_SPEAKER_DEVICE` it is played on that card.
 With neither it is received and not played. A list of addresses instead of
-`on` also holds a session open to each of them.
+`on` also holds a session open to each of them. A source that pauses goes on
+sending its music and asks its listeners to fall silent, so while it says it
+pauses, every output here plays silence instead.
 
 `BEO_ENROL=1` lets the product add itself to the configuration the products
 on the network share. A source plays only to products it finds there, so
@@ -100,6 +102,37 @@ The product's volume and mute are set on that card's mixer, with the top of
 the app's scale as the card's full level. The control is the card's playback
 volume with the widest range; `BEO_SPEAKER_MIXER` names another. A machine is
 not affected: it has a volume of its own.
+
+The product has a page of its own at `http://<product>.local/web/`, on the
+port the app uses. It controls the product the way the app does, and plays
+the product's sound in the browser: the machine's, or while the product
+listens to another, the stream it receives, never both. On an iPhone it can
+be added to the home screen. The sound arrives a few seconds after it plays.
+The encoder and the capture run only while a browser listens, and opening the
+page alone starts neither. With a machine behind the product, playing in a
+browser asks the machine for its sound the way an expand does, which switches
+the machine on and starts its discs.
+
+While the product listens to another, the page is about that one: it shows
+what plays there, its play, pause and skip keys go to it, and its volume
+slider sets that product's volume, since that is the room that plays. The
+discs are offered only while the product's own source is its discs.
+
+A browser's sound keeps playing on a locked phone. Play and pause on the lock
+screen are the phone's own: they pause what the phone plays and nobody
+else's, while skipping there goes to the product. A phone will not start a
+stream again behind a locked screen, so after a pause there the sound returns
+only once the phone is unlocked and play is pressed on the page. The page's
+own keys steer the product, and its play starts a fresh stream, so nothing
+buffered before a pause is heard after it.
+
+The page is on unless `BEO_WEB=off`. The sound is sent as AAC at 256 kbit/s;
+`BEO_WEB_FORMAT=mp3` sends MP3 instead, for a browser that will not play the
+AAC, and `BEO_WEB_BITRATE` sets the rate as ffmpeg writes it, such as `320k`.
+None of the three are in the file. The machine's sound needs `BEO_BEOLINK`,
+since that builds the capture; without it a browser hears silence until
+another product plays to this one. Anyone on the network can open the page,
+as anyone can use the app.
 
 Three settings are not in the file, because nobody should need them. Add a
 line to use one. `BEO_PTP=0` stops the product following the other products'

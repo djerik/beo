@@ -25,6 +25,7 @@ actually been run against hardware.
 | 8 | Diagnostics: another product's logs, the timing offset, bus decoding | library modules: `networklink.nsdk`, `networklink.ptp`, `masterlink.codec` | in use |
 | 9 | More than one classic product on the same bus | beo-adapter | not modelled |
 | 10 | A B&O remote's key presses reach Home Assistant | beo-adapter | planned, after the first release |
+| 11 | A browser plays the product's sound and steers it, a phone with its screen locked too | beo-adapter | verified on an iPhone, with the 9000's sound and with another product's stream passed on. A pause on a locked phone cannot be resumed there |
 
 Home Assistant control of a classic product was on this list and was removed. It
 costs nothing to support, because use case 1 already presents the machine as a
@@ -137,7 +138,7 @@ beo/
 │  └─ mozart/         beo-mozart        facade, ws, profile
 ├─ apps/
 │  └─ beo-adapter/    the service: main, machines, ml_bridge, classics_adapter_profile,
-│                     streaming, listening, speaker
+│                     streaming, listening, speaker, web
 ├─ deploy/            the installer, the updater, the systemd unit, the udev rule, deploy.py
 └─ docs/              this document, the app protocol, the install guide, the product
                       matrix, the carrier-board draft

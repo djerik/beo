@@ -48,10 +48,12 @@ fi
 # Packages come from apt, never from a system-wide pip. Debian bookworm and
 # newer refuse that outright (PEP 668), and the service runs the source trees
 # straight off PYTHONPATH, so there is nothing to build or install.
-echo "== python packages"
+echo "== packages"
 missing=""
 python3 -c "import serial" 2>/dev/null || missing="$missing python3-serial"
 python3 -c "import zeroconf" 2>/dev/null || missing="$missing python3-zeroconf"
+# The product's page sends its sound to a browser through ffmpeg.
+command -v ffmpeg >/dev/null 2>&1 || missing="$missing ffmpeg"
 if [ -n "$missing" ]; then
   echo "   installing:$missing"
   sudo apt-get install -y -q $missing

@@ -328,7 +328,9 @@ cannot collide with one it might call later.
   it must be the disc number: "CD 5 · Variatio 12" collapses to "512", matches
   no disc, and crashes the player. The demo discs therefore avoid digits
   (Roman numerals on the Goldberg Variations), and the facade strips digits
-  from track names as a safety net.
+  from track names as a safety net. A track with no name, which is every
+  track when only what the machine reports is shown, gives the title
+  "CD 5" alone, and the track number travels in `track`.
 - **The first `art[]` entry is the one that shows.** The app takes its `url`
   for any source that is not netRadio or dlna.
 

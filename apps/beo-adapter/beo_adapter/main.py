@@ -133,6 +133,13 @@ def main(argv=None) -> int:
                     help="the mixer control that sets the level of that output "
                          "(BEO_SPEAKER_MIXER in the configuration). Left out, it is the "
                          "card's playback volume with the widest range")
+    ap.add_argument("--web", default=os.environ.get("BEO_WEB", "on"),
+                    help="the product's page at /web/, with its sound for a browser "
+                         "(BEO_WEB in the configuration): on or off")
+    ap.add_argument("--web-format", default=os.environ.get("BEO_WEB_FORMAT", "aac").strip().lower(),
+                    help="what the sound is sent to a browser as (BEO_WEB_FORMAT): aac or mp3")
+    ap.add_argument("--web-bitrate", default=os.environ.get("BEO_WEB_BITRATE", "256k").strip(),
+                    help="its bitrate (BEO_WEB_BITRATE), as ffmpeg writes it: 256k")
     ap.add_argument("--log-level", default=_default_log_level())
     ap.add_argument("--product", default=os.environ.get("BEO_PRODUCT", ""),
                     help="which Mozart product the app should see (BEO_PRODUCT in the "
@@ -222,8 +229,29 @@ def main(argv=None) -> int:
         facade.set_volume_listener(speaker.volume)
         log.info("own output: %s", a.speaker_device)
 
+    # The page in a browser, and the product's sound for it. The page is
+    # there from the start; the sound only once the BeoLink side has built
+    # the capture, and silence until then.
+    web = None
+    if a.web.strip().lower() not in _OFF + ("0", "false"):
+        from .web import WebStream
+        try:
+            web = WebStream(codec=a.web_format, bitrate=a.web_bitrate)
+        except ValueError as e:
+            print(e, file=sys.stderr)
+            return 2
+        if machine is not None:
+            web.on_machine = facade.request_ml_audio
+        facade.serve("/web", web.serve)
+        log.info("web page at /web/, sound sent as %s %s", a.web_format, a.web_bitrate)
+
     def beolink_out(*args, **kw):
         out = BeolinkOut(*args, sources=sources_for(machine), **kw)
+        if web is not None:
+            web.machine = out.capture
+            if out.tone:
+                from beo.networklink.audio import Fanout, ToneSource
+                web.machine = Fanout(ToneSource(out.fmt, 440.0, 0.2), paced=False)
         if dial is not None:
             host = facade.HOSTNAME.rstrip(".")
             # The network's own time, when the clock follows it: the stamp the
@@ -231,12 +259,15 @@ def main(argv=None) -> int:
             clock = out.role.clock
             lead = getattr(clock, "lead_ns", None)
             now_ns = (lambda: clock.now_ns() - lead) if lead is not None else None
-            facade.set_beolink_in(BeolinkIn(out.ident, out.role.catalog, dial=dial,
-                                            host=host[:-len(".local")], machine=backend,
-                                            device=a.playback_device, speaker=speaker,
-                                            now_ns=now_ns,
-                                            enrol=a.enrol,
-                                            wireless=facade.OUR_TRANSPORT == "wireless").start())
+            listening = BeolinkIn(out.ident, out.role.catalog, dial=dial,
+                                  host=host[:-len(".local")], machine=backend,
+                                  device=a.playback_device, speaker=speaker,
+                                  web=web, now_ns=now_ns,
+                                  enrol=a.enrol,
+                                  wireless=facade.OUR_TRANSPORT == "wireless").start()
+            facade.set_beolink_in(listening)
+            if web is not None:
+                web.listening = listening
         return out
 
     try:

@@ -5,7 +5,7 @@ other products open their sessions on. When a stream starts, the machine
 behind the product is asked to play a network source; once it has agreed, the
 stream goes out on the sound card, which is what feeds the machine. A product
 with an output of its own plays the stream there as well, and needs no
-machine to do it.
+machine to do it. A browser listening on the product's page hears it too.
 
 It is off unless the configuration asks for it. With the port open a product
 may choose to talk to us on a session of its own instead of the one we opened
@@ -68,6 +68,28 @@ def playing_lines(xml: str) -> list:
     return [line for line in lines if line]
 
 
+def playback_state(xml: str) -> str:
+    """play | pause | stop, as a source's progress says it; empty if it does not."""
+    m = re.search(r"<type>PROGRESS_INFORMATION</type><kind>playing</kind><data><state>(\w+)</state>",
+                  xml)
+    return m.group(1) if m else ""
+
+
+def now_playing(xml: str) -> Optional[dict]:
+    """What a source says is playing, for the product's page: the station,
+    the artist and title a station gives as 'artist - title', and its picture."""
+    m = re.search(r"<type>NOW_PLAYING\w*</type><kind>playing</kind><data>(.*?)</data>", xml, re.S)
+    if not m:
+        return None
+
+    def first(name):
+        f = re.search(r"<%s>([^<]+)</%s>" % (name, name), m.group(1))
+        return html.unescape(f.group(1)).strip() if f else ""
+    artist, _, title = first("liveDescription").partition(" - ")
+    return {"station": first("name"), "artist": artist.strip(), "title": title.strip(),
+            "image": first("url")}
+
+
 class Outputs:
     """Every output one received stream is written to.
 
@@ -78,6 +100,9 @@ class Outputs:
     def __init__(self):
         self._open: tuple = ()
         self._stopped = False
+        # A source that pauses goes on sending its music and asks its
+        # listeners to mute. Silence in its place keeps every output's timing.
+        self.muted = False
         self._lock = threading.Lock()
 
     def add(self, playback) -> bool:
@@ -89,6 +114,8 @@ class Outputs:
             return True
 
     def write(self, block) -> None:
+        if self.muted:
+            block = replace(block, pcm=bytes(len(block.pcm)))
         for playback in self._open:
             playback.write(block)
 
@@ -105,7 +132,7 @@ class BeolinkIn:
 
     def __init__(self, ident: ProductIdentity, catalog: Catalog, *, dial: Iterable[str] = (),
                  host: str = "", machine=None, device: str = "hw:0,0", speaker=None,
-                 now_ns=None, enrol: bool = False, wireless: bool = True):
+                 web=None, now_ns=None, enrol: bool = False, wireless: bool = True):
         self.ident = ident
         self.enrol, self.wireless = enrol, wireless
         self.dial = [ip for ip in dial if ip]
@@ -127,7 +154,16 @@ class BeolinkIn:
         # The product's own output: open(now_ns) gives a playback that is
         # already at the product's volume. It asks nobody before it plays.
         self.speaker = speaker
+        # The browsers, opened the same way: they hear the stream while it runs.
+        self.web = web
         self.outputs: Optional[Outputs] = None
+        # How the last join went, for the product's page: the app has a
+        # timer of its own and is told only of success.
+        self.last_join: Optional[dict] = None
+        # What the source says is playing while we listen, and whether it
+        # plays or pauses.
+        self.playing: Optional[dict] = None
+        self.source_state = ""
         self._lines: list = []
         if hasattr(machine, "on_network_source_left"):
             machine.on_network_source_left = self.leave
@@ -199,8 +235,10 @@ class BeolinkIn:
         The join waits for the source's answers, so it runs beside the
         request; ``on_result`` is told how it ended.
         """
+        self.last_join = {"jid": jid, "state": "joining"}
         ip = facade.peer_by_jid(jid).get("ipAddress")
         if not ip:
+            self.last_join = {"jid": jid, "state": "failed"}
             log.warning("join %s: nothing by that jid has been heard on the network", jid)
             if on_result:
                 on_result(False)
@@ -212,6 +250,7 @@ class BeolinkIn:
                 joined = self.role.join(ip, jid)
             except Exception:      # noqa: BLE001
                 log.exception("joining %s crashed", jid)
+            self.last_join = {"jid": jid, "state": "joined" if joined else "failed"}
             if on_result:
                 on_result(joined)
 
@@ -224,7 +263,10 @@ class BeolinkIn:
     # ---- what the role reports ------------------------------------------
     def _started(self, cur: Listening) -> None:
         log.warning("listening to %s from %s", cur.source_key, cur.source_jid)
+        self.playing = now_playing(cur.status)
+        self.source_state = playback_state(cur.status) or "play"
         outputs = Outputs()
+        outputs.muted = self.source_state != "play"
         self.outputs = outputs
         self.role.sink = outputs
         if self.speaker is not None:
@@ -232,6 +274,8 @@ class BeolinkIn:
                 self._add(outputs, self.speaker.open(self.now_ns))
             except OSError as e:
                 log.error("the product's own output could not be opened: %s", e)
+        if self.web is not None:
+            self._add(outputs, self.web.open(self.now_ns))
         if getattr(self.machine, "network_source_started", None) is None:
             return
         # Beside the join, not inside it: the stream is ours from this moment,
@@ -265,6 +309,17 @@ class BeolinkIn:
 
     def _notified(self, kind: str, xml: str) -> None:
         """The source says what is playing again whenever it changes."""
+        playing = now_playing(xml)
+        if playing is not None:
+            self.playing = playing
+        state = playback_state(xml)
+        if state:
+            self.source_state = state
+            outputs = self.outputs
+            if outputs is not None and outputs.muted != (state != "play"):
+                outputs.muted = state != "play"
+                log.info("the source %s: the outputs are %s", "plays" if state == "play" else
+                         "pauses", "muted" if outputs.muted else "playing again")
         lines = playing_lines(xml)
         if lines and lines != self._lines:
             self._lines = lines
@@ -277,6 +332,8 @@ class BeolinkIn:
 
     def _stopped(self, cur: Listening) -> None:
         log.warning("no longer listening to %s", cur.source_jid)
+        if self.role.current is None:
+            self.playing = None
         self.role.sink = None
         outputs, self.outputs = self.outputs, None
         if outputs is not None:
@@ -303,4 +360,4 @@ def from_configuration(value: Optional[str]) -> Optional[list]:
     return [p.strip() for p in v.split(",") if p.strip()]
 
 
-__all__ = ["BeolinkIn", "describe", "from_configuration"]
+__all__ = ["BeolinkIn", "describe", "from_configuration", "now_playing", "playback_state"]

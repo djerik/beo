@@ -11,7 +11,8 @@ from beo.networklink.sources import Catalog, STANDARD_SOURCES
 from beo.networklink.roles.listener import Listening
 from beo.product.identity import ProductIdentity
 from beo_adapter import listening
-from beo_adapter.listening import BeolinkIn, Outputs, describe, from_configuration, playing_lines
+from beo_adapter.listening import (BeolinkIn, Outputs, describe, from_configuration, now_playing,
+                                   playback_state, playing_lines)
 
 IDENT = ProductIdentity.from_jid("3150.1454530.90000001", "Listener", "00:00:5E:00:53:01")
 
@@ -223,3 +224,67 @@ def test_a_block_is_held_until_its_time_and_dropped_when_too_old():
     assert not p._due(block(9_000_000_000).device_ns)                      # a second late: dropped
     assert p._due(block(90_000_000_000).device_ns) and waited == [0.5]     # another clock: not held
     assert AlsaPlayback()._due(0)                                          # no clock: as it arrives
+
+
+class Browsers:
+    """The page's stream, as the listening side sees it."""
+
+    def open(self, now_ns=None):
+        return Playback("web")
+
+
+def test_the_browsers_hear_the_stream_beside_the_cards(playback):
+    b = BeolinkIn(IDENT, Catalog(STANDARD_SOURCES), machine=Machine(takes=True),
+                  device="hw:9,9", speaker=Speaker(), web=Browsers())
+    cur = listening_to()
+    started(b, cur)
+    assert played_on(b) == ["own", "web", "hw:9,9"]
+    b.role.current = None
+    b._stopped(cur)
+    assert all(p.stopped for p in playback.made)
+
+
+def test_how_a_join_went_is_kept_for_the_page(monkeypatch):
+    monkeypatch.setattr(listening.threading, "Thread", Inline)
+    b = BeolinkIn(IDENT, Catalog(STANDARD_SOURCES))
+    monkeypatch.setattr(listening.facade, "peer_by_jid", lambda jid: {})
+    b.join("nobody")
+    assert b.last_join == {"jid": "nobody", "state": "failed"}
+    monkeypatch.setattr(listening.facade, "peer_by_jid", lambda jid: {"ipAddress": "203.0.113.5"})
+    monkeypatch.setattr(b.role, "join", lambda ip, jid: True)
+    b.join("somebody")
+    assert b.last_join == {"jid": "somebody", "state": "joined"}
+
+
+def test_what_plays_at_the_source_is_kept_for_the_page(playback):
+    assert now_playing(notification("ARTIST - A TITLE")) == {
+        "station": "Test Station", "artist": "ARTIST", "title": "A TITLE", "image": ""}
+    assert now_playing("<NOTIFICATION><type>PROGRESS_INFORMATION</type></NOTIFICATION>") is None
+    b = BeolinkIn(IDENT, Catalog(STANDARD_SOURCES))
+    cur = listening_to()
+    started(b, cur)
+    assert b.playing["station"] == "Test Station" and b.source_state == "play"
+    b._notified("PROGRESS_INFORMATION", "<NOTIFICATION><type>PROGRESS_INFORMATION</type>"
+                "<kind>playing</kind><data><state>pause</state></data></NOTIFICATION>")
+    assert b.source_state == "pause"
+    b.role.current = None
+    b._stopped(cur)
+    assert b.playing is None
+
+
+def test_a_source_says_whether_it_plays():
+    xml = ("<type>PROGRESS_INFORMATION</type><kind>playing</kind><data><state>pause</state>"
+           "<position>3</position></data>")
+    assert playback_state(xml) == "pause" and playback_state("<x/>") == ""
+
+
+def test_a_source_that_pauses_is_heard_as_silence(playback):
+    b = BeolinkIn(IDENT, Catalog(STANDARD_SOURCES), speaker=Speaker())
+    started(b, listening_to())
+    progress = ("<NOTIFICATION><type>PROGRESS_INFORMATION</type><kind>playing</kind>"
+                "<data><state>%s</state></data></NOTIFICATION>")
+    b._notified("PROGRESS_INFORMATION", progress % "pause")
+    b.role.sink.write(FpsBlock(1, b"", 0, 0, b"\x01\x02\x03\x04", 0.0, "203.0.113.10"))
+    b._notified("PROGRESS_INFORMATION", progress % "play")
+    b.role.sink.write(FpsBlock(2, b"", 0, 0, b"\x01\x02\x03\x04", 0.0, "203.0.113.10"))
+    assert [blk.pcm for blk in playback.made[0].written] == [bytes(4), b"\x01\x02\x03\x04"]

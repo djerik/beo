@@ -39,7 +39,7 @@ where = ["."]
 include = ["beo_adapter*"]
 
 [tool.setuptools.package-data]
-"beo_adapter" = ["py.typed"]
+"beo_adapter" = ["py.typed", "web/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

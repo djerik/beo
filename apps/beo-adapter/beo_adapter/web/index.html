@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Beo</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#f4f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#151515" media="(prefers-color-scheme: dark)">
+<style>
+:root {
+  --bg: #f4f3f0; --panel: #ffffff; --text: #1d1d1b; --muted: #6f6e69;
+  --line: #e2e0da; --accent: #1d1d1b; --accent-text: #ffffff; --on: #b5651d;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #151515; --panel: #1f1f1f; --text: #ecebe7; --muted: #9a9892;
+          --line: #2e2e2e; --accent: #ecebe7; --accent-text: #151515; --on: #e0a060; }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); }
+body {
+  font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+  max-width: 480px; margin: 0 auto;
+}
+header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+h1 { font-size: 1.1rem; font-weight: 600; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status { font-size: .8rem; color: var(--muted); }
+.status.off { color: var(--on); }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-top: 14px; }
+h2 { font-size: .75rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+.now { display: flex; gap: 14px; align-items: center; }
+.art { width: 72px; height: 72px; border-radius: 8px; background: var(--line) center/cover no-repeat; flex: none; }
+.title { font-weight: 600; font-size: 1.05rem; }
+.sub { color: var(--muted); font-size: .9rem; }
+.time { color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.transport { display: flex; justify-content: center; align-items: center; gap: 18px; margin-top: 16px; }
+button {
+  font: inherit; color: var(--text); background: transparent; border: 1px solid var(--line);
+  border-radius: 999px; padding: 8px 14px; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+button:active { opacity: .6; }
+button.round { width: 52px; height: 52px; padding: 0; display: grid; place-items: center; }
+button.main { width: 64px; height: 64px; background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+button.wide { width: 100%; padding: 12px; }
+button.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+button.listening { border-color: var(--on); color: var(--on); }
+svg { width: 22px; height: 22px; fill: currentColor; }
+.row { display: flex; align-items: center; gap: 12px; }
+input[type=range] { flex: 1; accent-color: var(--accent); }
+.discs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.peers { display: grid; gap: 8px; }
+.peer { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.peer span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hint { color: var(--muted); font-size: .85rem; margin: 8px 0 0; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="name">…</h1>
+  <button id="power" class="round" aria-label="Power">
+    <svg viewBox="0 0 24 24"><path d="M11 3h2v10h-2zM7.05 5.64l1.41 1.41A6 6 0 1 0 15.54 7l1.41-1.41A8 8 0 1 1 7.05 5.64z"/></svg>
+  </button>
+</header>
+<div class="status" id="status"></div>
+
+<section>
+  <div class="now">
+    <div class="art" id="art"></div>
+    <div>
+      <div class="title" id="title">—</div>
+      <div class="sub" id="sub"></div>
+      <div class="time" id="elapsed"></div>
+    </div>
+  </div>
+  <div class="transport">
+    <button class="round" id="prev" aria-label="Previous">
+      <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
+    </button>
+    <button class="round main" id="play" aria-label="Play">
+      <svg viewBox="0 0 24 24" id="play-icon"><path d="M8 5v14l11-7z"/></svg>
+    </button>
+    <button class="round" id="next" aria-label="Next">
+      <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+    </button>
+  </div>
+</section>
+
+<section>
+  <h2 id="volume-title">Volume</h2>
+  <div class="row">
+    <button class="round" id="mute" aria-label="Mute">
+      <svg viewBox="0 0 24 24" id="mute-icon"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4z"/></svg>
+    </button>
+    <input type="range" id="volume" min="0" max="100" value="0" aria-label="Volume">
+  </div>
+</section>
+
+<section id="discs-section" hidden>
+  <h2 data-t="discs">Discs</h2>
+  <div class="discs" id="discs"></div>
+</section>
+
+<section>
+  <h2 data-t="here">Listen here</h2>
+  <button class="wide" id="listen" data-t="listen">Play in this browser</button>
+  <p class="hint" id="listen-hint" data-t="listenHint">The sound arrives a few seconds after it plays.</p>
+  <audio id="audio" preload="none"></audio>
+</section>
+
+<section>
+  <h2 data-t="join">Listen to another product</h2>
+  <div class="peers" id="peers"></div>
+  <p class="hint" id="no-peers" data-t="noPeers">No other products found yet.</p>
+</section>
+
+<script>
+"use strict";
+const TEXT = {
+  en: {
+    volume: "Volume", volumeOf: "Volume on %s", discs: "Discs", here: "Listen here", listen: "Play in this browser",
+    stopListen: "Stop playing here", listenHint: "The sound arrives a few seconds after it plays.",
+    join: "Listen to another product", noPeers: "No other products found yet.",
+    joinBtn: "Listen", leave: "Leave", joining: "Joining…", failed: "Nothing to hear", standby: "Standby",
+    offline: "Not connected", playing: "Playing", paused: "Paused", stopped: "Stopped",
+    listeningTo: "Listening to %s", disc: "CD %s", track: "Track %s",
+  },
+  da: {
+    volume: "Lydstyrke", volumeOf: "Lydstyrke på %s", discs: "Diske", here: "Lyt her", listen: "Afspil i denne browser",
+    stopListen: "Stop afspilning her", listenHint: "Lyden kommer et par sekunder efter, den spiller.",
+    join: "Lyt med på et andet produkt", noPeers: "Ingen andre produkter fundet endnu.",
+    joinBtn: "Lyt med", leave: "Forlad", joining: "Forbinder…", failed: "Intet at høre", standby: "Standby",
+    offline: "Ikke forbundet", playing: "Spiller", paused: "Pause", stopped: "Stoppet",
+    listeningTo: "Lytter til %s", disc: "CD %s", track: "Spor %s",
+  },
+};
+const T = TEXT[(navigator.language || "en").slice(0, 2)] || TEXT.en;
+document.documentElement.lang = TEXT[(navigator.language || "").slice(0, 2)] ? navigator.language.slice(0, 2) : "en";
+document.querySelectorAll("[data-t]").forEach(el => { el.textContent = T[el.dataset.t]; });
+
+const $ = id => document.getElementById(id);
+const s = { state: "idle", power: "on", meta: null, vol: null, peers: [], discs: {},
+            joined: null, joining: null, failed: null, ws: false, wantAudio: false, source: "",
+            changedAt: 0,
+            playing: null, sourceState: "", sourceVol: null, progress: 0 };
+
+function api(path, body) {
+  const opts = body === undefined ? {} :
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+  return fetch("/api/v1/" + path, opts)
+    .then(r => (r.ok && r.status !== 204) ? r.json().catch(() => null) : null)
+    .catch(() => null);
+}
+// While the product listens to another, the keys belong to that one: the
+// product passes them on.
+function command(c) {
+  return s.joined
+    ? fetch("source/" + c, { method: "POST" }).then(() => setTimeout(status, 600)).catch(() => {})
+    : api("playback/command/" + c, {});
+}
+
+// ---- what the product says --------------------------------------------
+function on(type, data) {
+  switch (type) {
+    case "WebSocketEventPlaybackState": s.state = data.value; break;
+    case "WebSocketEventPlaybackMetadata": s.meta = data; break;
+    case "WebSocketEventPlaybackProgress": s.progress = data.progress || 0; break;
+    case "WebSocketEventVolume": s.vol = data; break;
+    case "WebSocketEventPowerState": s.power = data.value; break;
+    case "WebSocketEventSourceChange":
+    case "WebSocketEventPlaybackSource": s.source = (data.type || {}).value || ""; break;
+    case "WebSocketEventBeolinkJoinResult":
+      if (data.type === "join") {
+        if (data.status === "joined" && s.joined !== data.jid) { s.joined = data.jid; s.changedAt = Date.now(); }
+        s.joining = null;
+      }
+      break;
+    default: return;
+  }
+  render();
+}
+
+function connect() {
+  const ws = new WebSocket("ws://" + location.hostname + ":9339");
+  ws.onopen = () => { s.ws = true; render(); };
+  ws.onmessage = e => {
+    try { const m = JSON.parse(e.data); on(m.eventType, m.eventData || {}); } catch (_) {}
+  };
+  ws.onclose = () => { s.ws = false; render(); setTimeout(connect, 2000); };
+}
+
+async function load() {
+  const [self, state, content] = await Promise.all([
+    api("beolink/self"), api("playback/state"), api("content")]);
+  if (self) $("name").textContent = self.friendlyName;
+  if (self) document.title = self.friendlyName;
+  if (state) {
+    s.state = state.state.value; s.meta = state.metadata;
+    s.progress = (state.progress || {}).progress || 0;
+    s.source = ((state.source || {}).type || {}).value || "";
+  }
+  s.discs = content || {};
+  render();
+  peers();
+  status();
+}
+
+// Whom the product listens to, and how a join went: the app is told only of
+// success, so the page asks the product itself.
+async function status() {
+  const st = await fetch("status").then(r => r.json()).catch(() => null);
+  if (!st) return null;
+  if (s.joined !== st.listeningTo) s.changedAt = Date.now();
+  s.joined = st.listeningTo;
+  s.playing = st.playing;
+  s.sourceState = st.sourceState;
+  s.sourceVol = st.sourceVolume;
+  render();
+  return st;
+}
+// What plays at the source changes without a word on the notification socket.
+setInterval(() => { if (s.joined) status(); }, 3000);
+
+// What is playing, wherever it comes from: the product's own, or what the
+// product it listens to says.
+function shown() {
+  if (s.joined && s.playing) {
+    const p = s.playing;
+    return { title: p.title || p.station, sub: [p.artist, p.title ? p.station : ""].filter(Boolean).join(" · "),
+             art: p.image, album: p.station, playing: s.sourceState !== "pause" && s.sourceState !== "stop" };
+  }
+  // With no source active the product's metadata is a placeholder, not
+  // something that plays.
+  if (!s.source || s.source === "unknown") return { title: "", sub: "", playing: false };
+  const m = s.meta || {};
+  const art = (m.art || [])[0];
+  // The disc is in the title already; the line below says what the title
+  // cannot, since the app reads every digit there as the disc's.
+  const track = m.track ? T.track.replace("%s", m.track) : "";
+  const album = m.albumName !== m.title ? m.albumName : "";
+  return { title: m.title, sub: [m.artistName, album, track].filter(Boolean).join(" · "),
+           art: art && art.url, album: m.albumName, playing: s.state === "started" };
+}
+
+async function peers() {
+  s.peers = (await api("beolink/peers")) || [];
+  render();
+  setTimeout(peers, 10000);
+}
+
+// ---- drawing ------------------------------------------------------------
+let dragging = false;
+function render() {
+  const m = s.meta || {};
+  const now = shown();
+  const playing = now.playing;
+  $("title").textContent = now.title || "—";
+  $("sub").textContent = now.sub;
+  // How long the track has played. Not how long it is: the machine never
+  // says, so there is no total and no bar to fill.
+  const own = !s.joined && s.source === "classicsAdapter" && s.progress > 0;
+  $("elapsed").textContent = own
+    ? Math.floor(s.progress / 60) + ":" + String(s.progress % 60).padStart(2, "0") : "";
+  $("art").style.backgroundImage = now.art ? "url(" + JSON.stringify(now.art) + ")" : "";
+  $("play-icon").innerHTML = playing
+    ? '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>' : '<path d="M8 5v14l11-7z"/>';
+  $("play").setAttribute("aria-label", playing ? "Pause" : "Play");
+
+  const peer = s.peers.find(p => p.jid === s.joined);
+  const status = !s.ws ? T.offline
+    : s.power !== "on" && !playing ? T.standby
+    : s.joined ? T.listeningTo.replace("%s", peer ? peer.friendlyName : "…")
+    : ({ started: T.playing, paused: T.paused, stopped: T.stopped })[s.state] || "";
+  $("status").textContent = status;
+  $("status").classList.toggle("off", !s.ws);
+
+  // While the product listens to another, the volume is that one's: the room
+  // that plays. The browser's own is the phone's, set on its keys.
+  const vol = volume();
+  $("volume-title").textContent = s.joined && peer ? T.volumeOf.replace("%s", peer.friendlyName) : T.volume;
+  if (vol && !dragging) {
+    $("volume").max = vol.maximum;
+    $("volume").value = vol.level;
+  }
+  const muted = vol && vol.muted;
+  $("mute").classList.toggle("active", !!muted);
+
+  const uris = Object.keys(s.discs).sort((a, b) =>
+    a.localeCompare(b, undefined, { numeric: true }));
+  // The discs are a choice only while the product's source is its discs: not
+  // while it listens to another, is on a source of its own, or plays nothing.
+  $("discs-section").hidden = !uris.length || !!s.joined || s.source !== "classicsAdapter";
+  $("discs").replaceChildren(...uris.map(uri => {
+    const b = document.createElement("button");
+    b.textContent = s.discs[uri].label || uri;
+    b.classList.toggle("active", m.uri === uri);
+    b.onclick = () => api("content/" + encodeURIComponent(uri) + "/trigger", {});
+    return b;
+  }));
+
+  $("no-peers").hidden = s.peers.length > 0;
+  $("peers").replaceChildren(...s.peers.map(p => {
+    const row = document.createElement("div");
+    row.className = "peer";
+    const name = document.createElement("span");
+    name.textContent = p.friendlyName || p.jid;
+    const b = document.createElement("button");
+    const joined = s.joined === p.jid;
+    b.textContent = joined ? T.leave : s.joining === p.jid ? T.joining
+      : s.failed === p.jid ? T.failed : T.joinBtn;
+    b.classList.toggle("listening", joined);
+    // The button changes under the finger when a join succeeds; a second tap
+    // meant for the first must not leave again.
+    b.onclick = () => {
+      if (Date.now() - s.changedAt < 2000) return;
+      joined ? leave() : join(p.jid);
+    };
+    row.append(name, b);
+    return row;
+  }));
+
+  $("listen").textContent = s.wantAudio ? T.stopListen : T.listen;
+  $("listen").classList.toggle("active", s.wantAudio);
+  session(now);
+}
+
+// ---- the lock screen ------------------------------------------------------
+function session(now) {
+  if (!("mediaSession" in navigator)) return;
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: now.title || $("name").textContent, artist: now.sub || "",
+    album: now.album || $("name").textContent,
+    artwork: now.art ? [{ src: now.art, sizes: "512x512" }] : [] });
+}
+if ("mediaSession" in navigator) {
+  // Play and pause on the lock screen are this phone's: they pause what it
+  // plays and nobody else's, and the phone does it to the player itself,
+  // with or without this page awake. A track or station up or down means
+  // nothing to a live stream, so those keys go to the product or the source.
+  const handlers = { play: null, pause: null,
+                     nexttrack: () => command("skip"), previoustrack: () => command("prev") };
+  for (const [action, fn] of Object.entries(handlers)) {
+    try { navigator.mediaSession.setActionHandler(action, fn); } catch (_) {}
+  }
+}
+
+// ---- what the user does ---------------------------------------------------
+// A pause or play anywhere reaches the browser through the stream, which is
+// silence while the source pauses. The player itself is never paused or
+// muted: a phone hands its lock screen to another player the moment this one
+// stops sounding. What the browser has buffered plays out first, so a play
+// pressed here, where it is a tap the browser trusts, also starts a fresh
+// stream. On a locked phone the browser will not start one.
+$("play").onclick = () => {
+  const play = !shown().playing;
+  command(play ? "play" : "pause");
+  if (play && s.wantAudio) startAudio();
+};
+$("prev").onclick = () => command("prev");
+$("next").onclick = () => command("skip");
+$("power").onclick = () => s.power === "on"
+  ? api("state/standby", {}) : api("state/power", { value: "on" });
+function volume() {
+  if (s.joined) return s.sourceVol;
+  return s.vol && { level: s.vol.level.level, maximum: s.vol.maximum.level, muted: s.vol.muted.muted };
+}
+function setVolume(body) {
+  if (!s.joined) return api("sound/volume/" + ("level" in body ? "level" : "mute"), body);
+  return fetch("source/volume", { method: "POST", headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify(body) })
+    .then(() => setTimeout(status, 400)).catch(() => {});
+}
+$("mute").onclick = () => setVolume({ muted: !(volume() && volume().muted) });
+
+let volTimer = null;
+$("volume").oninput = e => {
+  dragging = true;
+  clearTimeout(volTimer);
+  volTimer = setTimeout(() => {
+    Promise.resolve(setVolume({ level: +e.target.value }))
+      .then(() => setTimeout(() => { dragging = false; }, 800));
+  }, 120);
+};
+
+async function join(jid) {
+  s.joining = jid;
+  s.failed = null;
+  render();
+  await api("beolink/join/" + encodeURIComponent(jid), {});
+  for (let i = 0; i < 25 && s.joining === jid; i++) {
+    await new Promise(r => setTimeout(r, 1000));
+    const st = await status();
+    const j = st && st.join;
+    if (j && j.jid === jid && j.state !== "joining") {
+      if (j.state === "failed") s.failed = jid;
+      break;
+    }
+  }
+  if (s.joining === jid) s.joining = null;
+  render();
+  if (s.failed === jid) setTimeout(() => { if (s.failed === jid) { s.failed = null; render(); } }, 4000);
+}
+function leave() {
+  s.joined = null;
+  render();
+  api("beolink/leave", {});
+}
+
+// ---- the stream -----------------------------------------------------------
+const audio = $("audio");
+let retry = null;
+function startAudio() {
+  // A new URL each time, so no browser plays a stale buffer from before.
+  pausedAt = 0;
+  audio.src = "stream?t=" + Date.now();
+  audio.play().catch(() => {});
+}
+// After a pause of its own a phone's player does not go on with a stream
+// that never ends: it stands still. It starts again from now instead.
+let pausedAt = 0;
+audio.addEventListener("pause", () => { if (s.wantAudio) pausedAt = Date.now(); });
+audio.addEventListener("play", () => {
+  const paused = pausedAt ? Date.now() - pausedAt : 0;
+  pausedAt = 0;
+  if (paused > 0 && s.wantAudio) startAudio();
+});
+function stopAudio() {
+  clearTimeout(retry);
+  audio.pause();
+  audio.removeAttribute("src");
+  audio.load();
+}
+function again() {
+  if (!s.wantAudio) return;
+  clearTimeout(retry);
+  retry = setTimeout(startAudio, 1500);
+}
+audio.addEventListener("error", again);
+audio.addEventListener("ended", again);
+$("listen").onclick = () => {
+  s.wantAudio = !s.wantAudio;
+  s.wantAudio ? startAudio() : stopAudio();
+  render();
+};
+
+connect();
+load();
+</script>
+</body>
+</html>

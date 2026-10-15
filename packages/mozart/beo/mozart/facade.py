@@ -475,6 +475,19 @@ def set_beolink_in(listening):
     _beolink_in = listening
 
 
+# Paths the application answers itself, by prefix. The app never asks for
+# them, so they cannot shadow a route it relies on.
+_served = {}
+
+
+def serve(prefix, handler):
+    """handler(request, path) answers every request at or under ``prefix``
+    in full, through the BaseHTTPRequestHandler it is given; request.command
+    is the verb, and a write's body is request.body. A response that never
+    ends, such as a stream, holds only its own connection."""
+    _served[prefix.rstrip("/")] = handler
+
+
 # "wired" or "wireless", the only two values the app knows. Decided from which
 # interface carries our LAN address.
 OUR_TRANSPORT = "wired"
@@ -515,10 +528,11 @@ DISCS = {
 
 
 def disc_info(cd):
-    """(album, artist, tracks) for a disc — or bare numbers in faithful mode."""
+    """(album, artist, tracks) for a disc — or bare numbers in faithful mode,
+    where a track has no name to show, only its place on the disc."""
     if not DISCS:
-        return f"CD {cd}", "", [f"Spor {i}" for i in range(1, 13)]
-    return DISCS.get(cd, (f"CD {cd}", "", [f"Spor {i}" for i in range(1, 13)]))
+        return f"CD {cd}", "", [""] * 12
+    return DISCS.get(cd, (f"CD {cd}", "", [""] * 12))
 
 
 def track_count(cd):
@@ -1120,6 +1134,10 @@ class Handler(BaseHTTPRequestHandler):
         # whether a 404 hits the app, another product, or nobody.
         log.info("GET  %-46s <- %s", self.path, self.client_address[0])
 
+        for prefix, handler in _served.items():
+            if path == prefix or path.startswith(prefix + "/"):
+                return handler(self, path)
+
         # The long notification stream: line-delimited JSON, connection held
         # open, every line beginning with '{' (docs/app-protocol.md §10).
         if path == "/BeoNotify/Notifications":
@@ -1203,6 +1221,11 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path.rstrip("/")
         log.info("%s %s  body=%s", verb, self.path, body[:400].decode("utf-8", "replace"))
+
+        for prefix, handler in _served.items():
+            if path == prefix or path.startswith(prefix + "/"):
+                self.body = body
+                return handler(self, path)
 
         if path.startswith("/api/v1/sound/volume"):
             try:

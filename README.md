@@ -48,6 +48,11 @@ can play to, with or without a music system.<br>
 </tr>
 </table>
 
+**In a browser too.** The product has a page of its own at
+`http://<product>.local/web/`: the same controls, and its sound played in the
+browser, on a phone with the screen locked as well. *Works, with a BeoSound
+9000 and on an iPhone.*
+
 Other Master Link music systems (BeoSound 3000, 3200 and 4, BeoCenter 2) can
 be chosen in the installer. They are there to be tried: none of them has been
 run against the real machine.
