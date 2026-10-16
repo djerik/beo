@@ -15,7 +15,12 @@ Framing facts:
     (the parity switch after the first byte is a separate write + drain).
     Echo suppression must match the reassembled telegram.
   * Sending: MARK on the first byte, SPACE on the body, MARK on the trailing 00,
-    tcdrain between. 0.35 s minimum between Beo4 presses.
+    each part on the wire before the parity changes. 0.35 s minimum between
+    Beo4 presses.
+  * tcdrain is not "on the wire" everywhere. ftdi_sio waits for the chip's
+    transmitter to empty; cdc_acm (WCH CH9102 and the like) only waits for USB,
+    and the parity change then overtakes bytes still in the chip's FIFO. So the
+    sender also waits out the bytes' own transmission time.
 """
 from __future__ import annotations
 
@@ -124,8 +129,14 @@ class Framer:
 
 # ---------------------------------------------------------------- serial
 def set_ftdi_latency(port: str, ms: int = 1) -> bool:
-    """Best effort: /sys/bus/usb-serial/devices/<tty>/latency_timer. Needs root or a udev rule."""
+    """Best effort: /sys/bus/usb-serial/devices/<tty>/latency_timer. Needs root or a udev rule.
+
+    Only a usb-serial adapter has the timer. A cdc_acm port (ttyACM) or the
+    Pi's own UART has none, and there is nothing to set.
+    """
     name = os.path.basename(port)
+    if not os.path.isdir("/sys/bus/usb-serial/devices/%s" % name):
+        return True
     path = "/sys/bus/usb-serial/devices/%s/latency_timer" % name
     try:
         with open(path) as f:
@@ -146,9 +157,11 @@ class SerialTransport(MlTransport):
     """Owns the serial port. MDT v1: /dev/ttyUSB0 (FTDI). Carrier board: /dev/ttyAMA0."""
 
     def __init__(self, port: str = "/dev/ttyUSB0", baud: int = 19200, *,
-                 silence_s: float = 0.005, set_latency: bool = True, echo_window_s: float = 2.0):
+                 silence_s: float = 0.005, set_latency: bool = True, echo_window_s: float = 2.0,
+                 drain_margin_s: float = 0.005):
         self.port, self.baud = port, baud
         self.silence_s = silence_s
+        self.drain_margin_s = drain_margin_s
         self.set_latency = set_latency
         self.echo_window_s = echo_window_s
         self._ser = None
@@ -213,16 +226,21 @@ class SerialTransport(MlTransport):
         import serial
         raw = telegram.raw
         with self._wlock:
-            ser = self._ser
-            ser.parity = serial.PARITY_MARK
-            ser.write(raw[:1]); ser.flush()
-            ser.parity = serial.PARITY_SPACE
-            ser.write(raw[1:-1]); ser.flush()
-            ser.parity = serial.PARITY_MARK
-            ser.write(raw[-1:]); ser.flush()
-            ser.parity = serial.PARITY_SPACE
+            self._put(raw[:1], serial.PARITY_MARK)
+            self._put(raw[1:-1], serial.PARITY_SPACE)
+            self._put(raw[-1:], serial.PARITY_MARK)
+            self._ser.parity = serial.PARITY_SPACE
             self._sent.append((raw, time.monotonic()))
         log.debug(">> %s", telegram)
+
+    def _put(self, chunk: bytes, parity: str) -> None:
+        """Send `chunk` with `parity` and return once it has left the chip."""
+        self._ser.parity = parity
+        self._ser.write(chunk)
+        self._ser.flush()
+        # Start, 8 data, parity and stop bit per byte, plus room for the chip
+        # to start sending what USB has just handed it.
+        time.sleep(len(chunk) * 11 / self.baud + self.drain_margin_s)
 
     def close(self) -> None:
         self._stop.set()

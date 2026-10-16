@@ -96,6 +96,9 @@ print("   %d source trees checked" % len(trees))
 sys.exit(1 if bad else 0)
 PY
 
+BOOTCFG=/boot/firmware/config.txt
+[ -f "$BOOTCFG" ] || BOOTCFG=/boot/config.txt
+
 echo "== MasterLink interface"
 # Only USB serial ports are looked for. The Pi's own UART is there on every
 # Pi, wired to something or not, so its being there says nothing.
@@ -112,6 +115,25 @@ if [ -n "$ML_PORT" ]; then
   if [ -e "$LATENCY" ]; then
     echo 1 | sudo tee "$LATENCY" >/dev/null
     echo "   latency timer set to 1 ms"
+  fi
+  # The interface with a WCH chip holds the bus's data lines up only as the
+  # bus master, and it is master only while GPIO25 is driven low; a pull-up on
+  # the board leaves it slave. As slave it hears nothing on a bus no other
+  # product holds up. Set in the boot configuration, the pin is low from power
+  # on; set here as well, it is low without a restart.
+  if udevadm info -q property -n "$ML_PORT" 2>/dev/null | grep -q '^ID_VENDOR_ID=1a86$'; then
+    if [ -f "$BOOTCFG" ] && grep -q '^gpio=25=op,dl' "$BOOTCFG"; then
+      echo "   the interface is MasterLink master (GPIO25 low in $BOOTCFG)"
+    elif [ -f "$BOOTCFG" ]; then
+      echo "   the interface (a WCH chip) is MasterLink master only with GPIO25 held low,"
+      echo "   which is one line in $BOOTCFG"
+      if [ "$(ask '   make it master (yes / no)' yes)" = "yes" ]; then
+        sudo cp -n "$BOOTCFG" "$BOOTCFG.before-ml-master"
+        printf '\n[all]\ngpio=25=op,dl\n' | sudo tee -a "$BOOTCFG" >/dev/null
+        sudo pinctrl set 25 op dl 2>/dev/null || sudo raspi-gpio set 25 op dl 2>/dev/null || true
+        echo "   master from now on; the file as it was is $BOOTCFG.before-ml-master"
+      fi
+    fi
   fi
 else
   echo "   none found. Unless one is named below, the product is installed with"
@@ -150,8 +172,6 @@ if [ -n "$CARDS" ]; then echo "   found: $CARDS"; else echo "   none found"; fi
 # on only on a yes, and can be chosen below before the Pi has been restarted.
 JACK_TURNED_ON=0     # by this run, so on the owner's yes
 JACK_PENDING=0       # on in the boot configuration, not yet a card
-BOOTCFG=/boot/firmware/config.txt
-[ -f "$BOOTCFG" ] || BOOTCFG=/boot/config.txt
 MODEL="$(tr -d '\0' < /proc/device-tree/model 2>/dev/null || true)"
 case "$MODEL" in
   *Zero*|*"Compute Module"*|*"Pi 400"*|*"Pi 500"*|"Raspberry Pi 5"*) HAS_JACK=0 ;;
