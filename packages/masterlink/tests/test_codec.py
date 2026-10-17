@@ -118,7 +118,6 @@ def test_global_release_signature():
     assert beo4_press(Beo4.STANDBY, frm=0xF0).body.hex() == "c1f0010a0000002005020001008d0c"
 
 
-def test_video_master_stop_command_bytes():
-    from beo.masterlink.codec import Telegram, AUDIO_MASTER, VIDEO_MASTER, CMD, PL_STANDBY
-    t = Telegram.build(AUDIO_MASTER, VIDEO_MASTER, CMD, PL_STANDBY, b"", dst_source=0xFF, flag=0x03)
-    assert t.body.hex() == "c1c0010aff0000100003"          # the one form that stops the audio master
+def test_release_that_switches_the_audio_master_off():
+    from beo.masterlink.codec import release_audio_master
+    assert release_audio_master().hex == "c106010a000000110001e400"      # source byte 00

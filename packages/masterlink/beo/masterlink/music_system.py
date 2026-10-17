@@ -38,7 +38,7 @@ from typing import Callable, Deque, List, Optional
 from .bus import MlBus
 from .codec import (Beo4, Clock, PlayState, StatusInfo, Telegram, decode_clock, decode_display,
                     decode_distributed_source, decode_nak, decode_status_info,
-                    request, link_room_source_request, standby_all_sources, PL_DISTRIBUTED_SOURCE,
+                    request, link_room_source_request, release_audio_master, PL_DISTRIBUTED_SOURCE,
                     PL_NAK, PL_STATUS_INFO, SRC_CD)
 from .profiles import MusicSystemProfile, Source
 
@@ -320,21 +320,20 @@ class MusicSystem:
         return self.state
 
     def _standby(self) -> MusicSystemState:
-        """Stop the machine with the video master's STANDBY for all sources. Nothing a
-        link node sends switches the audio master off, because a link room's
-        standby is the link room's own. Playback stops and the display keeps
-        showing disc and track, so the caller's standby is a stop of the machine
-        plus standby of everything on our side."""
+        """Switch the machine off with a RELEASE that names no source. Its answer
+        is a 0x87 without the media flag and with no change bits, so it reads as
+        an echo; the flag is what tells it from a status of a playing machine.
+        A pause gives the same answer, so the bus cannot tell the two apart."""
         def pred(tg: Telegram) -> bool:
             si = decode_status_info(tg)
-            return si is not None and not si.is_echo and si.state in (PlayState.STANDBY, PlayState.STOP)
+            return si is not None and not si.media_loaded
         with self.bus.expect(pred) as w:
-            self.bus.send(standby_all_sources())
+            self.bus.send(release_audio_master())
             tg = w.result(4.0)
         if tg is None:
-            log.warning("standby: no 0x87 after the video-master STANDBY command (was it already stopped?)")
+            log.warning("standby: no 0x87 after the RELEASE (was it already off?)")
         else:
-            log.info("standby: the machine stopped (%s)", tg)
+            log.info("standby: the machine switched off (%s)", tg)
         time.sleep(0.1)
         self._set(replace(self.state, play_state=PlayState.STANDBY))
         return self.state

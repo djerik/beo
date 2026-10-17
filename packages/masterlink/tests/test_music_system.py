@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from dataclasses import replace
 
-from beo.masterlink.codec import Beo4, PlayState, Telegram, checksum, decode_beo4
+from beo.masterlink.codec import Beo4, PlayState, Telegram, checksum, decode_beo4, PL_RELEASE
 from beo.masterlink.music_system import MusicSystem, OperationFailed
 from beo.masterlink.profiles import BS9000, MusicSystemProfile, Source
 
@@ -38,6 +38,10 @@ class Machine:
         self.cd_window = False
 
     def __call__(self, sent: Telegram):
+        if sent.payload_type == PL_RELEASE and sent.dst_source == 0x00:
+            # off, answered with the playing state byte, no change bits and no media flag
+            self.state = 0x06
+            return [status(self.disc, self.track, 0x02, 0x00)]
         k = decode_beo4(sent)
         if not k:
             return []
@@ -101,6 +105,14 @@ def test_next_confirmed_by_status_and_echo_deduped(fake_bus):
     st = p.next().result(timeout=2)
     assert st.track == 4 and st.disc == 1
     assert len([c for c in changes if c.track == 4]) == 1      # echo did not fire twice
+
+
+def test_standby_releases_the_machine_and_takes_its_status_as_the_answer(fake_bus):
+    p, m, tr = make(fake_bus)
+    st = p.standby().result(timeout=2)        # the answer reads as an echo and still counts
+    assert st.play_state == PlayState.STANDBY
+    assert tr.sent[-1].hex == "c106010a000000110001e400"
+    assert m.state == 0x06
 
 
 def keys_sent(tr):

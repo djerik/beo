@@ -240,16 +240,17 @@ def link_room_source_request(source: int = SRC_CD) -> Telegram:
                           bytes([0x02, source & 0xFF, 0x00, 0x02, 0x01, 0x00, 0x00]), flag=0x01)
 
 
-def standby_all_sources() -> Telegram:
-    """STANDBY (0x10) for all sources, sent as the video master.
+def release_audio_master(frm: int = LINK_NODE) -> Telegram:
+    """RELEASE (0x11) with no source: the audio master lets go of everything and
+    switches off, display included.
 
-    The one form that stops the audio master from the bus. A link node's
-    STANDBY, RELEASE or Beo4 STANDBY key leaves it playing, because a link
-    room's standby is the link room's own.
+        c1 06 01 0a 00 00 00 11 00 01
 
-        c1 c0 01 0a ff 00 00 10 00 03
+    The source byte must be 00. With a source in it the RELEASE names that one
+    source and the machine plays on. The video master's STANDBY for all
+    sources only stops playback and leaves the display on.
     """
-    return Telegram.build(AUDIO_MASTER, VIDEO_MASTER, CMD, PL_STANDBY, b"", dst_source=0xFF, flag=0x03)
+    return Telegram.build(AUDIO_MASTER, frm, CMD, PL_RELEASE, b"", flag=0x01)
 
 
 def request(payload_type: int, *, frm: int = LINK_NODE, to: int = AUDIO_MASTER) -> Telegram:
