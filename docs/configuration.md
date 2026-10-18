@@ -12,6 +12,7 @@ One file, `/etc/beo/product.env`, read by systemd:
     BEO_MACHINE=bs9000
     BEO_BACKEND=masterlink
     BEO_ML_PORT=/dev/ttyUSB0
+    BEO_ML_INTERFACE=mdt1
     BEO_BEOLINK=1
     BEO_FAITHFUL=1
     BEO_LISTEN=off
@@ -58,6 +59,16 @@ is then taken to have a BeoSound 9000 on it.
 no bus is attached. `BEO_MACHINE=bs9000` with `BEO_BACKEND=none` shows the
 9000's product in the app with nothing on the other side, which is how the app
 side is tried without the machine.
+
+`BEO_ML_PORT` is the serial port the Master Link interface is on, and
+`BEO_ML_INTERFACE` which interface that is. `mdt1` is a MasterDataTool v1: it
+is a USB serial port, `/dev/ttyUSB0` as a rule, and carries the bus's own
+bytes. `mdt2` is a MasterDataTool v2: it sits on the Pi's own UART,
+`/dev/serial0` once that is turned on, and has a controller of its own that
+does the bus framing. A configuration from before the setting existed has no
+such line and is taken to have a v1. The v2 has not been run against a
+machine; [getting-started.md](getting-started.md) says what the Pi needs for
+it.
 
 `BEO_BEOLINK` turns on streaming this product's sound to other speakers, which
 needs a capture device. Listening is built on it too, so it is also on for a

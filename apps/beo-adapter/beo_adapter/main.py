@@ -49,11 +49,19 @@ def _default_machine() -> str:
     return "none" if _backend_off() else "bs9000"
 
 
+def _default_ml_interface() -> str:
+    """Which MasterLink interface is on the Pi: mdt1 unless the configuration
+    says otherwise, as every configuration from before the setting existed
+    was written for one."""
+    return os.environ.get("BEO_ML_INTERFACE", "").strip().lower() or "mdt1"
+
+
 def _default_ml_port() -> str:
-    """Where the bus is, according to the installed configuration."""
+    """Where the bus is, according to the installed configuration. A v1 is a
+    USB serial port; a v2 sits on the Pi's own UART."""
     if _backend_off():
         return "none"
-    return os.environ.get("BEO_ML_PORT") or "/dev/ttyUSB0"
+    return os.environ.get("BEO_ML_PORT") or ("/dev/serial0" if _default_ml_interface() == "mdt2" else "/dev/ttyUSB0")
 
 
 def _default_log_level() -> str:
@@ -101,8 +109,13 @@ def main(argv=None) -> int:
                          "or none for a plain speaker. It decides both how the bus is "
                          "spoken to and what the app draws")
     ap.add_argument("--ml", default=_default_ml_port(),
-                    help="MasterLink serial port (MDT v1: /dev/ttyUSB0). 'none' = no bus "
-                         "attached: the machine's product is shown, and commands go nowhere")
+                    help="MasterLink serial port (BEO_ML_PORT in the configuration; MDT v1: "
+                         "/dev/ttyUSB0, v2: /dev/serial0). 'none' = no bus attached: the "
+                         "machine's product is shown, and commands go nowhere")
+    ap.add_argument("--ml-interface", default=_default_ml_interface(),
+                    help="which MasterLink interface is on the port (BEO_ML_INTERFACE in the "
+                         "configuration): mdt1, a MasterDataTool v1 on USB, or mdt2, a "
+                         "MasterDataTool v2 on the Pi's own UART. The v2 has not been tried")
     ap.add_argument("--no-source-center", action="store_true",
                     help="do not act as ML SourceCenter (N.RADIO / N.MUSIC into the machine)")
     ap.add_argument("--no-discovery", action="store_true",
@@ -153,10 +166,13 @@ def main(argv=None) -> int:
     from beo.mozart import facade
     from beo.mozart.profile import mozart_type
     from .machines import NoMachine, machine_named, profile_for, sources_for
+    from .ml_bridge import INTERFACES
 
     try:
         machine = machine_named(a.machine)
         mozart = mozart_type(a.product)
+        if a.ml_interface not in INTERFACES:
+            raise ValueError("no MasterLink interface called %r; one of %s" % (a.ml_interface, ", ".join(INTERFACES)))
     except ValueError as e:
         print(e, file=sys.stderr)
         return 2
@@ -168,10 +184,12 @@ def main(argv=None) -> int:
         # the setting nor the way out.
         log.error("there is no MasterLink interface at %s. Name the right port in "
                   "BEO_ML_PORT in /etc/beo/product.env, or set BEO_BACKEND=none to run "
-                  "with no bus, then restart the service", a.ml)
+                  "with no bus, then restart the service%s", a.ml,
+                  ". A MasterDataTool v2 is on /dev/serial0 once the Pi's UART is turned on "
+                  "in its start-up file" if a.ml_interface == "mdt2" else "")
         return 1
     else:
-        backend = machine.bridge(a.ml, source_center=not a.no_source_center)
+        backend = machine.bridge(a.ml, interface=a.ml_interface, source_center=not a.no_source_center)
         backend.start()
 
     def stop(*_):

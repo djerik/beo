@@ -14,6 +14,13 @@ the application share one version.
   machine itself. The ticks are kept in `/etc/beo/play-on`. The page's two
   link blocks, listening to another product and playing on other products,
   fold so that the open one is the direction the product is in.
+- **The MasterDataTool v2** as a Master Link interface, beside the v1. It
+  sits on the Pi's own UART and has a controller that does the bus framing,
+  so the product talks to it in frames of its own rather than in the bus's
+  bytes. `BEO_ML_INTERFACE=mdt2` in the configuration selects it, and the
+  installer asks when it finds the UART turned on and no USB interface. It
+  has not been run against a machine. See
+  [getting started](docs/getting-started.md#setup-a-a-classic-music-system).
 
 ## 0.1.0 — 2026-10-15
 

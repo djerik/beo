@@ -15,12 +15,14 @@ products can play to.
 - A Raspberry Pi running Debian. One Pi 3B+ on bullseye is the machine
   everything here was measured on; newer releases are expected to work and the
   installer adapts to what it finds.
-- Optional: a MasterDataTool v1, which appears as a USB serial port. Without it
-  the product installs and runs with nothing behind it.
+- Optional: a MasterDataTool v1, which appears as a USB serial port, or a
+  MasterDataTool v2, which sits on the Pi's own UART and has not been tried.
+  Without either the product installs and runs with nothing behind it.
 - Optional: a sound card. A machine needs one with an input and an output,
   wired to the bus's audio pairs. The MasterDataTool v1 has that card on
   board, and it appears once `dtoverlay=hifiberry-dacplusadcpro,slave` is in
-  the Pi's `config.txt`; the installer does not add the line. A speaker of the product's own needs any
+  the Pi's `config.txt`; the v2's appears with `dtoverlay=hifiberry-dacplusadc`.
+  The installer does not add the line. A speaker of the product's own needs any
   output, and the Pi's own jack will do: `dtparam=audio=on` in the Pi's
   `config.txt` and a restart turn it on. The installer offers to put the line
   there, on a Pi whose board has the jack, and does it only on a yes.
@@ -79,7 +81,9 @@ What it does, in order:
    error from a newer dialect is caught here and not at the first restart.
 4. Looks for a USB serial port, and if it finds one, installs the udev rule
    that drops the latency timer to one millisecond. At the default of sixteen
-   the USB stack batches bytes and cuts telegrams at arbitrary points.
+   the USB stack batches bytes and cuts telegrams at arbitrary points. With
+   no USB port but the Pi's UART turned on, it asks whether a MasterDataTool
+   v2 is on it.
 5. Lists the sound cards by name, and offers to turn on the Pi's own jack
    if it is off.
 6. Retires a previous installation if it finds one, under either of the names

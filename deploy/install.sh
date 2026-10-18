@@ -101,7 +101,9 @@ BOOTCFG=/boot/firmware/config.txt
 
 echo "== MasterLink interface"
 # Only USB serial ports are looked for. The Pi's own UART is there on every
-# Pi, wired to something or not, so its being there says nothing.
+# Pi, wired to something or not, so its being there says nothing: a
+# MasterDataTool v2 on it is asked about, never assumed.
+ML_INTERFACE=mdt1
 ML_PORTS="$(ls /dev/ttyUSB* /dev/ttyACM* 2>/dev/null | tr '\n' ' ')"
 ML_PORT="${ML_PORTS%% *}"
 if [ -n "$ML_PORT" ]; then
@@ -134,6 +136,19 @@ if [ -n "$ML_PORT" ]; then
         echo "   master from now on; the file as it was is $BOOTCFG.before-ml-master"
       fi
     fi
+  fi
+elif [ -e /dev/serial0 ]; then
+  # The v2 has no USB lead: its controller is on the Pi's UART, which the
+  # start-up file turns on. The v2 has not been run against a machine.
+  echo "   no USB serial port, but the Pi's own UART is on at /dev/serial0"
+  if [ "$(ask '   is a MasterDataTool v2 on it (yes / no)' no)" = "yes" ]; then
+    ML_INTERFACE=mdt2
+    ML_PORT=/dev/serial0
+    echo "   taken as a MasterDataTool v2, which has not been tried against a machine"
+  else
+    echo "   then the product is installed with no bus behind it unless one is named"
+    echo "   below, which is a supported way to run: the app sees the product, there"
+    echo "   is simply nothing on the other side of it yet."
   fi
 else
   echo "   none found. Unless one is named below, the product is installed with"
@@ -474,6 +489,10 @@ BEO_MACHINE=$MACHINE
 # masterlink = the machine is on the bus. none = no bus attached.
 BEO_BACKEND=$BACKEND
 BEO_ML_PORT=${ML_PORT:-none}
+
+# Which interface is on that port: mdt1, a MasterDataTool v1 on USB, or mdt2,
+# a MasterDataTool v2 on the Pi's own UART (not yet tried against a machine).
+BEO_ML_INTERFACE=$ML_INTERFACE
 
 # Stream this product's sound to other speakers, which needs a capture
 # device. Listening to other products is built on it too.

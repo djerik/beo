@@ -111,22 +111,38 @@ def test_unknown_machine_is_refused_by_name():
     assert "bs9000" in str(e.value)
 
 
-@pytest.mark.parametrize("env, machine, port", [
+@pytest.mark.parametrize("env, machine, port, interface", [
     # a configuration from before BEO_MACHINE existed: a bus means a 9000
-    ({"BEO_BACKEND": "masterlink", "BEO_ML_PORT": "/dev/ttyUSB1"}, "bs9000", "/dev/ttyUSB1"),
-    ({"BEO_BACKEND": "none"}, "none", "none"),
-    ({}, "bs9000", "/dev/ttyUSB0"),
+    ({"BEO_BACKEND": "masterlink", "BEO_ML_PORT": "/dev/ttyUSB1"}, "bs9000", "/dev/ttyUSB1", "mdt1"),
+    ({"BEO_BACKEND": "none"}, "none", "none", "mdt1"),
+    ({}, "bs9000", "/dev/ttyUSB0", "mdt1"),
     # the machine's product with no bus attached, for trying the app side alone
-    ({"BEO_BACKEND": "none", "BEO_MACHINE": "bs9000"}, "bs9000", "none"),
-    ({"BEO_BACKEND": "masterlink", "BEO_MACHINE": "none"}, "none", "/dev/ttyUSB0"),
+    ({"BEO_BACKEND": "none", "BEO_MACHINE": "bs9000"}, "bs9000", "none", "mdt1"),
+    ({"BEO_BACKEND": "masterlink", "BEO_MACHINE": "none"}, "none", "/dev/ttyUSB0", "mdt1"),
+    # a v2 sits on the Pi's own UART, unless the port is named
+    ({"BEO_ML_INTERFACE": "mdt2"}, "bs9000", "/dev/serial0", "mdt2"),
+    ({"BEO_ML_INTERFACE": "MDT2", "BEO_ML_PORT": "/dev/ttyAMA0"}, "bs9000", "/dev/ttyAMA0", "mdt2"),
 ])
-def test_defaults_come_from_the_configuration(monkeypatch, env, machine, port):
-    for key in ("BEO_BACKEND", "BEO_MACHINE", "BEO_ML_PORT"):
+def test_defaults_come_from_the_configuration(monkeypatch, env, machine, port, interface):
+    for key in ("BEO_BACKEND", "BEO_MACHINE", "BEO_ML_PORT", "BEO_ML_INTERFACE"):
         monkeypatch.delenv(key, raising=False)
     for key, value in env.items():
         monkeypatch.setenv(key, value)
     assert adapter_main._default_machine() == machine
     assert adapter_main._default_ml_port() == port
+    assert adapter_main._default_ml_interface() == interface
+
+
+def test_the_interface_picks_the_transport():
+    from beo.masterlink.bus import SerialTransport
+    from beo.masterlink.mdt2 import Mdt2Transport
+    from beo_adapter.ml_bridge import make_transport
+    assert isinstance(make_transport("mdt1", "/dev/ttyUSB0"), SerialTransport)
+    v2 = make_transport("mdt2", "/dev/serial0")
+    assert isinstance(v2, Mdt2Transport) and v2.port == "/dev/serial0"
+    with pytest.raises(ValueError) as e:
+        make_transport("mdt3", "/dev/serial0")
+    assert "mdt1, mdt2" in str(e.value)
 
 
 def test_log_level_reads_the_name_the_installer_writes(monkeypatch):

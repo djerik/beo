@@ -65,27 +65,37 @@ MasterDataTool v1 is the interface that has been tried. It carries the
 commands between the Pi and the music system, and it is also the sound card
 that takes the music system's sound in. There is no separate sound card to
 buy. The v1 is no longer sold. Its successor, the
-[MasterDataTool v2](https://labs.polyvection.com/mdt), is: it talks to the Pi
-in another way, has not been tried here, and is not expected to work without
-changes to the code. To hear the music system in other rooms you need Bang & Olufsen network
-speakers; controlling it from the app needs none.
+[MasterDataTool v2](https://labs.polyvection.com/mdt), is. The code speaks
+to it, but it has not been tried against a machine: if you have one, expect
+to be the first, and the log is where to look. To hear the music system in
+other rooms you need Bang & Olufsen network speakers; controlling it from the
+app needs none.
 
-**Connect.** With the Pi off, put the interface on the Pi's pin header and
-its USB lead in one of the Pi's USB ports. Run the Master Link cable from the
-interface to the music system's Master Link socket.
+**Connect.** With the Pi off, put the interface on the Pi's pin header. A v1
+also has a USB lead, which goes in one of the Pi's USB ports; a v2 has none.
+Run the Master Link cable from the interface to the music system's Master
+Link socket.
 
 Nothing is changed in the music system, and the Pi never wakes it on its own.
 It is switched on by you, at the machine or in the app.
 
 **Turn on the interface's sound card.** It is one line in the Pi's start-up
-file, and it takes effect when the Pi restarts:
+file, and it takes effect when the Pi restarts. For a v1:
 
     CFG=/boot/firmware/config.txt; [ -f $CFG ] || CFG=/boot/config.txt
     printf '\n[all]\ndtoverlay=hifiberry-dacplusadcpro,slave\n' | sudo tee -a $CFG
     sudo reboot
 
+A v2 has a different card, and talks to the Pi on the Pi's own UART, which
+has to be turned on and taken away from Bluetooth. Three lines, then:
+
+    CFG=/boot/firmware/config.txt; [ -f $CFG ] || CFG=/boot/config.txt
+    printf '\n[all]\ndtoverlay=hifiberry-dacplusadc\nenable_uart=1\ndtoverlay=disable-bt\n' | sudo tee -a $CFG
+    sudo reboot
+
 Wait a minute, log in again and go back to the folder with `cd beo`.
-`aplay -l` should now list a card called `sndrpihifiberry`.
+`aplay -l` should now list a card called `sndrpihifiberry`. With a v2,
+`ls -l /dev/serial0` should point at `ttyAMA0`.
 
 **Install.**
 

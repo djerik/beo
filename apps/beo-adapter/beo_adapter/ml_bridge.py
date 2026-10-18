@@ -33,13 +33,28 @@ STATE_NAME = {PlayState.PLAY: "started", PlayState.STOP: "paused", PlayState.WIN
               PlayState.UNKNOWN: "stopped"}
 
 
+INTERFACES = ("mdt1", "mdt2")
+
+
+def make_transport(interface: str, port: str):
+    """The port as the named interface speaks it: a v1 is a USB serial port
+    carrying the bus's own bytes, a v2 has a controller on the Pi's UART
+    that frames them."""
+    if interface == "mdt1":
+        return SerialTransport(port)
+    if interface == "mdt2":
+        from beo.masterlink.mdt2 import Mdt2Transport
+        return Mdt2Transport(port)
+    raise ValueError("no MasterLink interface called %r; one of %s" % (interface, ", ".join(INTERFACES)))
+
+
 class MlBridge(facade.MlBackend):
     """Owns the bus, the product model and (optionally) the source-center role."""
 
     def __init__(self, profile: MusicSystemProfile, port: str = "/dev/ttyUSB0", *,
-                 source_center: bool = True, transport=None):
+                 interface: str = "mdt1", source_center: bool = True, transport=None):
         if transport is None:
-            transport = SerialTransport(port)
+            transport = make_transport(interface, port)
         self.profile = profile
         self.bus = MlBus(transport)
         self.player = MusicSystem(self.bus, profile)
