@@ -57,6 +57,14 @@ input[type=range] { flex: 1; accent-color: var(--accent); }
 .peers { display: grid; gap: 8px; }
 .peer { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .peer span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.peer .name { flex: 1; min-width: 0; }
+.peer label { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: .85rem; flex: none; }
+.peer input[type=checkbox] { accent-color: var(--on); width: 18px; height: 18px; margin: 0; }
+h2.fold { display: flex; justify-content: space-between; gap: 12px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+h2.fold .summary { font-weight: 400; letter-spacing: 0; text-transform: none; text-align: right;
+                   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+section.folded h2 { margin-bottom: 0; }
+section.folded .body, section:not(.folded) .summary { display: none; }
 .hint { color: var(--muted); font-size: .85rem; margin: 8px 0 0; }
 [hidden] { display: none !important; }
 </style>
@@ -114,10 +122,21 @@ input[type=range] { flex: 1; accent-color: var(--accent); }
   <audio id="audio" preload="none"></audio>
 </section>
 
-<section>
-  <h2 data-t="join">Listen to another product</h2>
-  <div class="peers" id="peers"></div>
-  <p class="hint" id="no-peers" data-t="noPeers">No other products found yet.</p>
+<section id="in-section">
+  <h2 class="fold" id="in-head"><span data-t="join">Listen to another product</span><span class="summary" id="in-summary"></span></h2>
+  <div class="body">
+    <div class="peers" id="peers"></div>
+    <p class="hint" id="no-peers" data-t="noPeers">No other products found yet.</p>
+  </div>
+</section>
+
+<section id="out-section">
+  <h2 class="fold" id="out-head"><span data-t="playOn">Play on other products</span><span class="summary" id="out-summary"></span></h2>
+  <div class="body">
+    <div class="peers" id="targets"></div>
+    <p class="hint" id="no-targets" data-t="noPeers">No other products found yet.</p>
+    <p class="hint" data-t="playOnHint">A ticked product plays along every time this one is switched on.</p>
+  </div>
 </section>
 
 <script>
@@ -130,6 +149,9 @@ const TEXT = {
     joinBtn: "Listen", leave: "Leave", joining: "Joining…", failed: "Nothing to hear", standby: "Standby",
     offline: "Not connected", playing: "Playing", paused: "Paused", stopped: "Stopped",
     listeningTo: "Listening to %s", disc: "CD %s", track: "Track %s",
+    playOn: "Play on other products", playOnHint: "A ticked product plays along every time this one is switched on.",
+    auto: "Auto", playOnBtn: "Play on", starting: "Starting…", stop: "Stop",
+    notListening: "Not listening", playingOn: "Playing on %s", autoOn: "Auto: %s", nobody: "Nobody",
   },
   da: {
     volume: "Lydstyrke", volumeOf: "Lydstyrke på %s", discs: "Diske", here: "Lyt her", listen: "Afspil i denne browser",
@@ -138,6 +160,9 @@ const TEXT = {
     joinBtn: "Lyt med", leave: "Forlad", joining: "Forbinder…", failed: "Intet at høre", standby: "Standby",
     offline: "Ikke forbundet", playing: "Spiller", paused: "Pause", stopped: "Stoppet",
     listeningTo: "Lytter til %s", disc: "CD %s", track: "Spor %s",
+    playOn: "Spil på andre produkter", playOnHint: "Et afkrydset produkt spiller med, hver gang denne tændes.",
+    auto: "Auto", playOnBtn: "Spil på", starting: "Starter…", stop: "Stop",
+    notListening: "Lytter ikke med", playingOn: "Spiller på %s", autoOn: "Auto: %s", nobody: "Ingen",
   },
 };
 const T = TEXT[(navigator.language || "en").slice(0, 2)] || TEXT.en;
@@ -148,6 +173,10 @@ const $ = id => document.getElementById(id);
 const s = { state: "idle", power: "on", meta: null, vol: null, peers: [], discs: {},
             joined: null, joining: null, failed: null, ws: false, wantAudio: false, source: "",
             changedAt: 0,
+            // The other direction: who plays our sound, who is chosen to do so
+            // whenever the product comes on, and which block the owner opened
+            // against the state.
+            listeners: [], playOn: [], expanding: null, open: null, openFor: null,
             playing: null, sourceState: "", sourceVol: null, progress: 0 };
 
 function api(path, body) {
@@ -179,8 +208,15 @@ function on(type, data) {
       if (data.type === "join") {
         if (data.status === "joined" && s.joined !== data.jid) { s.joined = data.jid; s.changedAt = Date.now(); }
         s.joining = null;
+      } else if (data.type === "expand" && data.status === "joined") {
+        if (!s.listeners.includes(data.jid)) s.listeners.push(data.jid);
+        if (s.expanding === data.jid) s.expanding = null;
       }
       break;
+    // The only word that a listener has gone: the product says the list changed.
+    case "WebSocketEventNotification":
+      if (data.value === "beolinkListeners") listeners();
+      return;
     default: return;
   }
   render();
@@ -209,6 +245,7 @@ async function load() {
   render();
   peers();
   status();
+  playOn();
 }
 
 // Whom the product listens to, and how a join went: the app is told only of
@@ -251,7 +288,16 @@ function shown() {
 async function peers() {
   s.peers = (await api("beolink/peers")) || [];
   render();
+  listeners();
   setTimeout(peers, 10000);
+}
+async function listeners() {
+  const l = await api("beolink/listeners");
+  if (l) { s.listeners = l.map(x => x.jid); render(); }
+}
+async function playOn() {
+  const p = await fetch("play-on").then(r => r.json()).catch(() => null);
+  if (p) { s.playOn = p.jids || []; render(); }
 }
 
 // ---- drawing ------------------------------------------------------------
@@ -304,11 +350,25 @@ function render() {
     return b;
   }));
 
+  // One block per direction, and the open one is the direction the product
+  // is in: a listener has nothing of its own to share, a source listens to
+  // nobody. The owner may open the other; the state's next change folds it back.
+  const direction = s.joined ? "in" : "out";
+  if (s.openFor !== direction) { s.open = null; s.openFor = direction; }
+  const open = s.open || direction;
+  $("in-section").classList.toggle("folded", open !== "in");
+  $("out-section").classList.toggle("folded", open !== "out");
+  const named = jids => jids.map(j => { const q = s.peers.find(p => p.jid === j); return q ? q.friendlyName : "…"; }).join(", ");
+  $("in-summary").textContent = s.joined ? T.listeningTo.replace("%s", peer ? peer.friendlyName : "…") : T.notListening;
+  $("out-summary").textContent = s.listeners.length ? T.playingOn.replace("%s", named(s.listeners))
+    : s.playOn.length ? T.autoOn.replace("%s", named(s.playOn)) : T.nobody;
+
   $("no-peers").hidden = s.peers.length > 0;
   $("peers").replaceChildren(...s.peers.map(p => {
     const row = document.createElement("div");
     row.className = "peer";
     const name = document.createElement("span");
+    name.className = "name";
     name.textContent = p.friendlyName || p.jid;
     const b = document.createElement("button");
     const joined = s.joined === p.jid;
@@ -322,6 +382,29 @@ function render() {
       joined ? leave() : join(p.jid);
     };
     row.append(name, b);
+    return row;
+  }));
+
+  $("no-targets").hidden = s.peers.length > 0;
+  $("targets").replaceChildren(...s.peers.map(p => {
+    const row = document.createElement("div");
+    row.className = "peer";
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = p.friendlyName || p.jid;
+    const auto = document.createElement("label");
+    const tick = document.createElement("input");
+    tick.type = "checkbox";
+    tick.checked = s.playOn.includes(p.jid);
+    tick.onchange = () => setPlayOn(tick.checked
+      ? s.playOn.concat(p.jid) : s.playOn.filter(j => j !== p.jid));
+    auto.append(tick, document.createTextNode(T.auto));
+    const b = document.createElement("button");
+    const plays = s.listeners.includes(p.jid);
+    b.textContent = plays ? T.stop : s.expanding === p.jid ? T.starting : T.playOnBtn;
+    b.classList.toggle("listening", plays);
+    b.onclick = () => plays ? unexpand(p.jid) : expand(p.jid);
+    row.append(name, auto, b);
     return row;
   }));
 
@@ -410,6 +493,33 @@ function leave() {
   s.joined = null;
   render();
   api("beolink/leave", {});
+}
+$("in-head").onclick = () => { s.open = "in"; render(); };
+$("out-head").onclick = () => { s.open = "out"; render(); };
+
+function setPlayOn(jids) {
+  s.playOn = jids;
+  render();
+  return fetch("play-on", { method: "POST", headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ jids }) }).catch(() => {});
+}
+// A product is told to play along the way the app tells it. The product
+// must be on first, or there is no sound to send; its switching on brings
+// in the ticked products of itself, and a second request for the same one
+// is not a second stream. The result arrives as an expand event, or not at
+// all when it fails: then the button goes back when the product's own
+// wait would have ended.
+async function expand(jid) {
+  s.expanding = jid;
+  render();
+  if (s.power !== "on") await api("state/power", { value: "on" });
+  await api("beolink/expand/" + encodeURIComponent(jid), {});
+  setTimeout(() => { if (s.expanding === jid) { s.expanding = null; render(); } }, 25000);
+}
+function unexpand(jid) {
+  s.listeners = s.listeners.filter(j => j !== jid);
+  render();
+  api("beolink/unexpand/" + encodeURIComponent(jid), {});
 }
 
 // ---- the stream -----------------------------------------------------------

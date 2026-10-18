@@ -9,6 +9,8 @@
                    POST play | pause | skip | prev to the product this one
                    listens to, which is where those keys mean something then,
                    and volume, {"level": n} or {"muted": b}, to set its volume.
+    /web/play-on   GET the products that play along when this one is switched
+                   on, {"jids": [...]}, and POST the same shape to choose them.
     /web/stream    what the product plays, encoded once for every browser
                    that listens. An <audio> element plays it, and that keeps
                    playing on a locked phone where Web Audio is stopped.
@@ -464,6 +466,16 @@ class WebStream:
             return
         name = path[len(PREFIX):].lstrip("/") or "index.html"
         if request.command != "GET":
+            if name == "play-on":
+                from beo.mozart import facade
+                try:
+                    wanted = json.loads(getattr(request, "body", b"") or b"{}").get("jids")
+                except (ValueError, AttributeError):
+                    wanted = None
+                if not isinstance(wanted, list):
+                    return _send(request, 400, "text/plain", b"")
+                body = json.dumps({"jids": facade.set_play_on(wanted)}).encode()
+                return _send(request, 200, "application/json", body)
             if name == "source/volume":
                 try:
                     wanted = json.loads(getattr(request, "body", b"") or b"{}")
@@ -479,6 +491,10 @@ class WebStream:
             return self._serve_stream(request)
         if name == "status":
             return _send(request, 200, "application/json", json.dumps(self.status()).encode())
+        if name == "play-on":
+            from beo.mozart import facade
+            return _send(request, 200, "application/json",
+                         json.dumps({"jids": facade.play_on()}).encode())
         return _serve_file(request, name)
 
     def _serve_stream(self, request) -> None:

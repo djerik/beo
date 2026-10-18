@@ -162,6 +162,9 @@ up like one out of its box. Follow the app through the setup.
 - Play, pause, skip and change the volume from the app.
 - Expand the music to a network speaker from the app. The disc plays in both
   rooms.
+- Open `http://<product>.local/web/` and tick **Auto** by the speaker under
+  *Play on other products*. From then on the speaker plays along every time
+  the music system is switched on, from the app or from its own remote.
 
 **With setup B, try this:**
 

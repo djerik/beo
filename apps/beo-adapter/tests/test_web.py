@@ -387,3 +387,19 @@ def test_the_sources_volume_is_read_from_the_source(monkeypatch):
     assert s.source_volume() == {"level": 13, "maximum": 90, "muted": False}
     assert s.set_source_volume(level=30) == 200
     assert s.source_volume()["level"] == 30, "a level just set is read again, not kept"
+
+
+def test_the_products_that_play_along_are_chosen_from_the_page(monkeypatch, tmp_path):
+    from beo.mozart import facade
+    monkeypatch.setattr(facade, "PLAY_ON_FILE", str(tmp_path / "play-on"))
+    monkeypatch.setattr(facade, "_play_on", [])
+    s, _ = stream()
+    r = Request("/web/play-on")
+    r.command, r.body = "POST", json.dumps({"jids": ["a@x", "b@x"]}).encode()
+    s.serve(r, "/web/play-on")
+    assert r.status == 200 and json.loads(r.wfile.getvalue()) == {"jids": ["a@x", "b@x"]}
+    assert json.loads(get(s, "/web/play-on").wfile.getvalue()) == {"jids": ["a@x", "b@x"]}
+    bad = Request("/web/play-on")
+    bad.command, bad.body = "POST", b"{}"
+    s.serve(bad, "/web/play-on")
+    assert bad.status == 400

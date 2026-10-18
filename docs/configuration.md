@@ -118,6 +118,18 @@ what plays there, its play, pause and skip keys go to it, and its volume
 slider sets that product's volume, since that is the room that plays. The
 discs are offered only while the product's own source is its discs.
 
+The page has a block for each direction of the link: listening to another
+product, and playing on other products. The open block is the direction the
+product is in, and the other folds to one line of status; a tap on its
+heading opens it. In the second block each product has a button that makes
+it play this product's sound now, the way an expand from the app does, and
+a tick, **Auto**, that makes it play along every time this product is
+switched on, whether from the app, the remote or the machine itself. A
+product that cannot be found when the switch-on happens is waited for a
+short while, and then left out. Nothing is brought in while this product
+listens to another. Standby lets every product go, as it always did. The
+ticks are kept across a restart.
+
 A browser's sound keeps playing on a locked phone. Play and pause on the lock
 screen are the phone's own: they pause what the phone plays and nobody
 else's, while skipping there goes to the product. A phone will not start a
@@ -140,5 +152,7 @@ clock and makes it use a stored offset alone, read from the file
 `BEO_PTP_OFFSET` names (`/etc/beo/ptp_offset.ns`). `BEO_LOG` is where the
 service keeps a copy of its log, beside the journal.
 
-The service keeps two files of its own in `/etc/beo`: `version`, written by
-the installer, and `volume-default`, the default volume set in the app.
+The service keeps three files of its own in `/etc/beo`: `version`, written
+by the installer, `volume-default`, the default volume set in the app, and
+`play-on`, the products ticked on the page to play along when the product is
+switched on, one jid per line.

@@ -318,6 +318,79 @@ def set_default_volume(level):
     log.info("     -> default volume %d", _volume["default"])
 
 
+# The products that play along whenever this one is switched on, by jid.
+# The owner picks them on the product's page, and the choice outlives a
+# restart, like the default volume.
+PLAY_ON_FILE = os.environ.get("BEO_PLAY_ON_FILE", "/etc/beo/play-on")
+# How long a chosen product is waited for after the switch-on: the network
+# may not have named it yet when the service has just started.
+PLAY_ON_WAIT_S = 20.0
+
+
+def _stored_play_on():
+    try:
+        with open(PLAY_ON_FILE, encoding="utf-8") as f:
+            return [line.strip() for line in f if line.strip()]
+    except OSError:
+        return []
+
+
+_play_on: list[str] = _stored_play_on()
+
+
+def play_on():
+    """The jids of the products that play along when this one comes on."""
+    return list(_play_on)
+
+
+def set_play_on(jids):
+    """Which products play along from now on, kept on disk."""
+    wanted = []
+    for jid in jids:
+        jid = str(jid).strip()
+        if jid and jid not in wanted:
+            wanted.append(jid)
+    _play_on[:] = wanted
+    try:
+        with open(PLAY_ON_FILE, "w", encoding="utf-8") as f:
+            f.write("".join(jid + "\n" for jid in wanted))
+    except OSError as e:
+        log.warning("     -> the products that play along are not kept across a restart (%s)", e)
+    log.info("     -> plays along when switched on: %s", ", ".join(wanted) or "nobody")
+    return wanted
+
+
+def _bring_in_on_switch_on():
+    """The product has come on: the products chosen to play along are brought
+    in the way the app's expand brings one in, each in a thread of its own.
+
+    Not while this product listens to another: the sound is that one's then,
+    and there is nothing of ours to share. A product the network has not
+    named yet is asked for again until PLAY_ON_WAIT_S has passed, or the
+    product has gone back to standby.
+    """
+    if not _play_on or _beolink_out is None:
+        return
+    heard = getattr(_beolink_in, "listening_to", None)
+    if heard:
+        log.info("     -> listening to %s, so nobody is brought in", heard)
+        return
+
+    def bring_in():
+        request_ml_audio()
+        waiting = list(_play_on)
+        deadline = time.monotonic() + PLAY_ON_WAIT_S
+        while True:
+            waiting = [jid for jid in waiting if _beolink_out.add(jid) is False]
+            if not waiting or time.monotonic() >= deadline or _power["value"] != "on":
+                break
+            time.sleep(2.0)
+        for jid in waiting:
+            log.warning("     -> %s should play along but cannot be reached", jid)
+
+    threading.Thread(target=bring_in, name="play-on", daemon=True).start()
+
+
 def machine_switched_on():
     """The machine has just come on, so it stands at the volume it starts at.
 
@@ -343,6 +416,9 @@ def set_power(value):
     source = current_source()
     notifier.send("WebSocketEventSourceChange", source)
     notifier.send("WebSocketEventPlaybackSource", source)
+    # After the source, so the app has one to draw the group around.
+    if value == "on":
+        _bring_in_on_switch_on()
 
 
 def go_standby(from_app=True):
@@ -469,8 +545,9 @@ _beolink_in = None
 
 
 def set_beolink_in(listening):
-    """Give the facade the listening side: an object with join(jid, on_result)
-    and leave(). on_result(joined) is called once the outcome is known."""
+    """Give the facade the listening side: an object with join(jid, on_result),
+    leave() and listening_to, the jid it follows or None. on_result(joined) is
+    called once the outcome is known."""
     global _beolink_in
     _beolink_in = listening
 

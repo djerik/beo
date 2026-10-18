@@ -5,6 +5,16 @@ the application share one version.
 
 ## Unreleased
 
+### Added
+
+- **Speakers that play along by themselves.** On the product's page, under
+  *Play on other products*, each product has a button that makes it play
+  this product's sound now, and a tick, **Auto**, that makes it play along
+  every time this product is switched on, from the app, the remote or the
+  machine itself. The ticks are kept in `/etc/beo/play-on`. The page's two
+  link blocks, listening to another product and playing on other products,
+  fold so that the open one is the direction the product is in.
+
 ## 0.1.0 — 2026-10-15
 
 The first release. A Raspberry Pi with a Master Link interface puts a classic

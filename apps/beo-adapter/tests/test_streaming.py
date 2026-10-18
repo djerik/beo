@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import threading
+import time
 
 import pytest
 
@@ -166,3 +167,53 @@ def test_without_a_beolink_side_the_app_flow_still_completes(app, monkeypatch):
     monkeypatch.setattr(facade, "_beolink_out", None)
     assert app.expand(SPEAKER["jid"]) == 202
     assert app.joined() == [SPEAKER["jid"]]
+
+
+# ---- the products that play along when the product comes on ---------------
+@pytest.fixture
+def switch(app, monkeypatch):
+    """The product in standby, with the synthetic listener chosen to play along."""
+    monkeypatch.setattr(facade, "_power", {"value": "standby"})
+    monkeypatch.setattr(facade, "_play_on", [SPEAKER["jid"]])
+    monkeypatch.setattr(facade, "_beolink_in", None)
+    monkeypatch.setattr(facade, "PLAY_ON_WAIT_S", 0.0)
+    return app
+
+
+def test_the_chosen_product_plays_along_when_the_product_comes_on(switch, directory):
+    directory.append(SPEAKER)
+    facade.set_power("on")
+    assert switch.out.reported.wait(2)
+    assert switch.joined() == [SPEAKER["jid"]]
+    assert facade._beolink_listeners == [SPEAKER["jid"]]
+
+
+def test_a_product_that_is_on_already_brings_nobody_in_again(switch, directory):
+    directory.append(SPEAKER)
+    facade.set_power("on")
+    assert switch.out.reported.wait(2)
+    facade.set_power("on")
+    time.sleep(0.2)
+    assert len(switch.out.expanded) == 1
+
+
+def test_nothing_is_brought_in_while_the_product_listens_to_another(switch, directory, monkeypatch):
+    directory.append(SPEAKER)
+    monkeypatch.setattr(facade, "_beolink_in", type("In", (), {"listening_to": "src@x"})())
+    facade.set_power("on")
+    assert not switch.out.done.wait(0.3)
+    assert switch.joined() == []
+
+
+def test_a_product_the_network_has_not_named_is_left_out_without_a_word_to_the_app(switch):
+    facade.set_power("on")
+    assert not switch.out.done.wait(0.3)
+    assert switch.joined() == []
+
+
+def test_the_choice_is_kept_on_disk(tmp_path, monkeypatch):
+    monkeypatch.setattr(facade, "PLAY_ON_FILE", str(tmp_path / "play-on"))
+    monkeypatch.setattr(facade, "_play_on", [])
+    assert facade.set_play_on([SPEAKER["jid"], " ", SPEAKER["jid"], OWN]) == [SPEAKER["jid"], OWN]
+    assert facade.play_on() == [SPEAKER["jid"], OWN]
+    assert facade._stored_play_on() == [SPEAKER["jid"], OWN]

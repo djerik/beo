@@ -229,6 +229,12 @@ class BeolinkIn:
                 return
 
     # ---- what the facade asks for ---------------------------------------
+    @property
+    def listening_to(self) -> Optional[str]:
+        """The jid of the product this one follows, or None."""
+        cur = self.role.current
+        return cur.source_jid if cur is not None else None
+
     def join(self, jid: str, on_result: Optional[Callable[[bool], None]] = None) -> bool:
         """The app asked us to join the product with this jid.
 
