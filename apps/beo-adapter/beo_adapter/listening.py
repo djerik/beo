@@ -30,7 +30,7 @@ from beo.mozart import facade
 from beo.networklink import configuration
 from beo.networklink.audio import AlsaPlayback
 from beo.networklink.beocore import Server
-from beo.networklink.discovery import Advertiser, own_ip
+from beo.networklink.discovery import advertiser, own_ip
 from beo.networklink.sources import Catalog, SOURCES
 from beo.networklink.roles.listener import ListenerRole, Listening
 from beo.product.identity import ProductIdentity
@@ -132,20 +132,29 @@ class BeolinkIn:
 
     def __init__(self, ident: ProductIdentity, catalog: Catalog, *, dial: Iterable[str] = (),
                  host: str = "", machine=None, device: str = "hw:0,0", speaker=None,
-                 web=None, now_ns=None, enrol: bool = False, wireless: bool = True):
+                 web=None, now_ns=None, enrol: bool = False, wireless: bool = True,
+                 source=None):
         self.ident = ident
         self.enrol, self.wireless = enrol, wireless
+        # What the product offers other products to borrow: the catalogue's
+        # sources that the product can play to a listener, by the same rule
+        # the source side plays by.
+        self.offered = [s for s in catalog.sources if SOURCES.get(s.key) is s]
         self.dial = [ip for ip in dial if ip]
         ip = own_ip()
         self.role = ListenerRole(ident, ip, catalog=catalog,
                                  on_started=self._started, on_stopped=self._stopped,
                                  on_refused=self._refused, on_notification=self._notified)
-        self.server = Server(ident, self.role.serve)
+        # The product's own source side: a product that has borrowed one of
+        # our sources opens a session to us and asks for it with a Connect,
+        # and that question is the source side's to answer.
+        self.source = source
+        self.server = Server(ident, self._serve)
         # A source offers as listeners only the products it has found on the
         # product-to-product plane, and it finds them by these records. The
         # host is the one the app-facing records already carry, so both sets
         # describe one machine.
-        self.advertiser = Advertiser(replace(ident, host=host), ip) if host else None
+        self.advertiser = advertiser(replace(ident, host=host), ip) if host else None
         # The machine is asked through network_source_started(title, secondary)
         # and tells us through on_network_source_left when it turns away. A
         # product with nothing behind it has neither, and only counts.
@@ -168,6 +177,21 @@ class BeolinkIn:
         if hasattr(machine, "on_network_source_left"):
             machine.on_network_source_left = self.leave
         self._stop = threading.Event()
+
+    def _serve(self, session) -> None:
+        """A session a product opened to us. Its first word says what it is:
+        a source's ConnectRequest, which the listener role answers, or a
+        borrower's Connect for one of our sources, which the source side
+        does. The borrower's handler goes first, so that its Connect is not
+        left for the listener role to decline."""
+        if self.source is not None:
+            def borrow(s, st):
+                xml = st.xml
+                if "<Connect" in xml and "<ConnectRequest" not in xml and st.type == "set":
+                    return self.source.accept(s, st)
+                return False
+            session.on(borrow)
+        self.role.serve(session)
 
     def start(self) -> "BeolinkIn":
         try:
@@ -202,7 +226,9 @@ class BeolinkIn:
         """See that the network's configuration has our entry: what we are
         and the one source we offer. Tried until it is known to be there; the
         leader changes, and is at times nobody."""
-        entry = configuration.device_entry(self.ident, [SOURCES["CD"].named(self.ident.name)],
+        # The sources under their own names; the entry names the product
+        # beside them, and a product that borrows one shows the two apart.
+        entry = configuration.device_entry(self.ident, self.offered,
                                            wireless=self.wireless)
         while True:
             try:
@@ -214,6 +240,10 @@ class BeolinkIn:
                 return
             if result == configuration.ENROLLED:
                 log.warning("added to the network's configuration; sources will now offer us")
+                return
+            if result == configuration.REWRITTEN:
+                log.warning("our entry in the network's configuration was sent again as written "
+                            "now; a product linked to us may need linking again")
                 return
             log.warning("not yet in the network's configuration (%s); trying again in %.0f s",
                         result, ENROL_RETRY_S)

@@ -192,6 +192,25 @@ The second is the shared list described under setup B:
 
 Do it while nothing is playing: the restart stops the music.
 
+## When the sound stutters on a speaker
+
+Two commands say where a stutter comes from. On the Pi, after the speaker
+has played the product for a few minutes and stopped:
+
+    journalctl -u beo-adapter --since -15min | grep -E 'dropped|plan reset|CADENCE'
+
+A block dropped between the sound card and a stream is a hole in that stream,
+and the lines say how many and for whom. The cadence lines say how evenly the
+datagrams left. Then, from any machine on the network, with the speaker's
+address:
+
+    python -m beo.networklink.nsdk 203.0.113.50
+
+That fetches the speaker's own log and counts the holes it had to bridge, how
+often it started its player over, which is what a stutter is, and how far
+ahead the stream arrived. Around a thousand milliseconds is what a product's
+own stream gives it. Send both outputs along when reporting a stutter.
+
 ## Later
 
 - **A newer version:** `bash deploy/update.sh` in the `beo` folder on the Pi.

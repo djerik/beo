@@ -18,6 +18,7 @@ AFTER the listener's FullStatus; the four volume stanzas TOGETHER.
 """
 from __future__ import annotations
 
+import base64
 import logging
 import re
 import socket
@@ -33,6 +34,12 @@ from ..sources import (Catalog, Experience, NowPlaying, Requests, SourceDescript
                        StatusBuilder, Volume)
 
 log = logging.getLogger("beo.networklink.roles.source")
+
+# A listener's transport keys arrive through the tunnel as a telegram of
+# thirteen bytes, the key's code in the fifth; every press is followed by a
+# second telegram with the release code there.
+TUNNEL_KEY_AT = 4
+TUNNEL_KEY_RELEASE = 0x7E
 
 
 class Listener:
@@ -77,6 +84,9 @@ class SourceRole:
                  on_listener_joined: Optional[Callable[[Peer], None]] = None,
                  on_listener_left: Optional[Callable[[Peer], None]] = None,
                  on_renderer_volume: Optional[Callable[[Peer, Volume], None]] = None,
+                 on_source_switched: Optional[Callable[[SourceDescriptor], None]] = None,
+                 on_key: Optional[Callable[[int], None]] = None,
+                 experience_provider: Optional[Callable[[], Optional[Experience]]] = None,
                  goodbye_wait: float = 3.0):
         self.ident = ident
         # How long unexpand() keeps the session open for the listener's own
@@ -101,12 +111,27 @@ class SourceRole:
         self.on_listener_joined = on_listener_joined
         self.on_listener_left = on_listener_left
         self.on_renderer_volume = on_renderer_volume
+        # Told when a listener's Connect named another of our sources and the
+        # experience followed it: whoever owns the machine brings it there.
+        self.on_source_switched = on_source_switched
+        # Told the code of a transport key a listener sent through the tunnel.
+        self.on_key = on_key
+        # What plays with no listener yet: a product asked what it has to
+        # join answers with the source its machine is on, not with nothing.
+        self.experience_provider = experience_provider
         self.experience: Optional[Experience] = None
         self._listeners: Dict[str, Listener] = {}
         self._stale: List[Session] = []
         self._lock = threading.Lock()
 
     # ------------------------------------------------------------- public
+    def offered(self) -> Optional[Experience]:
+        """The experience a peer is told of: the one with listeners, or
+        else what plays without any."""
+        if self.experience is not None:
+            return self.experience
+        return self.experience_provider() if self.experience_provider else None
+
     def listeners(self) -> List[Peer]:
         with self._lock:
             return [l.peer for l in self._listeners.values()]
@@ -115,8 +140,13 @@ class SourceRole:
         with self._lock:
             return self._listeners.get(jid)
 
+    # How long a listener may take from our ConnectRequest to its Connect. A
+    # television wakes its panel first and answers after ten seconds or
+    # more; the app itself waits twenty-five.
+    CONNECT_TIMEOUT = 20.0
+
     def expand(self, peer: Peer, source: SourceDescriptor, audio, *,
-               wait_peer: float = 6.0, connect_timeout: float = 10.0) -> Optional[Listener]:
+               wait_peer: float = 6.0, connect_timeout: float = CONNECT_TIMEOUT) -> Optional[Listener]:
         """Make ``peer`` play ``source`` from ``audio``. Blocking; returns the
         Listener when the stream runs and the opening has been pushed, else None."""
         with self._lock:
@@ -163,31 +193,96 @@ class SourceRole:
         ok = r is not None and "<connected>1</connected>" in r
         log.warning("expand to %s: ConnectRequest %s", peer.name or peer.jid,
                     "accepted" if ok else "refused")
-        if ok and lis.streaming.wait(connect_timeout):
-            # The renderer is taken over AFTER the stream runs, not before:
-            # the four stanzas follow the first audio, they do not precede it.
-            try:
-                self.negotiate_volume(lis)
-            except Exception as e:
-                log.warning("could not take over the listener's renderer: %s", e)
-            # Tell the listener what is playing. Without it it reports
-            # NOW_PLAYING_ENDED and never starts rendering.
-            try:
-                self.push_opening(lis)
-            except Exception as e:
-                log.warning("could not announce playback: %s", e)
-            lis.joined = True
-            exp.listeners.append(peer.jid)
-            threading.Thread(target=self._progress_loop, args=(lis,), daemon=True,
-                             name="networklink-progress-%s" % peer.ip).start()
-            log.warning("%s now plays %s", peer.name or peer.jid, exp.source.name)
-            if self.on_listener_joined:
-                self.on_listener_joined(peer)
+        if ok and self._settle(lis, exp, connect_timeout):
             return lis
         if ok:
             log.error("%s never sent <Connect> — no stream to start", peer.name or peer.jid)
         self._drop(lis)
         return None
+
+    def _settle(self, lis: Listener, exp: Experience, connect_timeout: float) -> bool:
+        """What follows the listener's Connect, once the stream runs: the
+        renderer, the opening, the progress. False when no stream came."""
+        peer = lis.peer
+        if not lis.streaming.wait(connect_timeout):
+            return False
+        # The renderer is taken over AFTER the stream runs, not before:
+        # the four stanzas follow the first audio, they do not precede it.
+        try:
+            self.negotiate_volume(lis)
+        except Exception as e:
+            log.warning("could not take over the listener's renderer: %s", e)
+        # Tell the listener what is playing. Without it it reports
+        # NOW_PLAYING_ENDED and never starts rendering.
+        try:
+            self.push_opening(lis)
+        except Exception as e:
+            log.warning("could not announce playback: %s", e)
+        lis.joined = True
+        # The experience of now, not the one of the Connect: a listener that
+        # switched the source while its stream was settling belongs to the
+        # new one.
+        exp = self.experience or exp
+        exp.listeners.append(peer.jid)
+        threading.Thread(target=self._progress_loop, args=(lis,), daemon=True,
+                         name="networklink-progress-%s" % peer.ip).start()
+        log.warning("%s now plays %s", peer.name or peer.jid, exp.source.name)
+        if self.on_listener_joined:
+            self.on_listener_joined(peer)
+        return True
+
+    def _switch_to(self, key: str) -> Optional[SourceDescriptor]:
+        """Make the experience play the catalogue source with this key, when a
+        listener's Connect names another one than it plays: a product has one
+        machine behind it, and the machine plays one source, so every listener
+        follows. The new source when the experience switched, else None."""
+        exp = self.experience
+        if exp is None or not key or key == exp.source.key:
+            return None
+        try:
+            source = self.catalog.get(key)
+        except KeyError:
+            log.warning("a listener asks for %s, which is not a source of ours; %s plays on",
+                        key, exp.source.key)
+            return None
+        with self._lock:
+            self.experience = Experience(source, self.our_jid, now_playing=self.now_playing,
+                                         listeners=list(exp.listeners))
+        log.warning("the source is now %s, asked for by a listener", source.name)
+        return source
+
+    def adopt(self, peer: Peer, session, audio, source: SourceDescriptor, *,
+              connect_timeout: float = CONNECT_TIMEOUT) -> Listener:
+        """Take on a listener that opened the session itself and asks for
+        ``source`` with a Connect of its own, as one does for a source it has
+        borrowed from us. Nothing is asked of it first: the Connect is already
+        on its way, and the session's handler answers it. The rest follows
+        beside the call, as soon as the stream runs."""
+        with self._lock:
+            lis = self._listeners.get(peer.jid)
+            if lis is not None:
+                return lis
+            if self.experience is None:
+                self.experience = Experience(source, self.our_jid, now_playing=self.now_playing)
+            exp = self.experience
+            lis = Listener(peer, session, audio)
+            self._listeners[peer.jid] = lis
+        if exp.source.key != source.key:
+            log.warning("%s asks for %s while %s is playing — a listener shares the "
+                        "source, it does not switch it", peer.jid, source.key, exp.source.key)
+        # Ahead of whatever else serves the session: its Disconnect is the
+        # listener leaving, and it must reach the source side, not the
+        # listener side's handler that also knows the word.
+        session.on(lambda s, st: self._handle(lis, st), first=True)
+
+        def settle():
+            if not self._settle(lis, exp, connect_timeout):
+                log.error("%s never sent <Connect> — no stream to start", peer.name or peer.jid)
+                self._drop(lis)
+
+        threading.Thread(target=settle, daemon=True,
+                         name="networklink-adopt-%s" % peer.ip).start()
+        return lis
 
     def unexpand(self, peer: Peer) -> bool:
         """Close the experience like a real source: nedluk(), Disconnect, FPS stop, </stream>."""
@@ -339,11 +434,25 @@ class SourceRole:
             host = info.replace("FPS://", "").strip()
             log.warning("<< the listener's own Connect, verbatim:\n%s", xml[:2000])
             log.warning("<< Connect: sourceId=%s connectionInfo=%s", st.tag("sourceId"), info)
+            # A listener that connects again, to another of our sources or the
+            # same, gets one stream, not a second beside the first.
+            self._stop_fps(lis)
+            switched = self._switch_to(st.tag("sourceId") or "")
             self._start_fps(lis, host)
             lis.connection_id += 1
             cid = session.peer_jid or self.our_jid
             session.result(st, StatusBuilder.connect_reply(cid))
             log.info(">> Connect answered with connectionId=%s", cid)
+            if switched is not None:
+                # The listener subscribed at its first Connect; the new source
+                # reaches it as the opening does, after the answer.
+                if lis.joined:
+                    try:
+                        self.push_opening(lis)
+                    except Exception as e:
+                        log.warning("could not announce the new source: %s", e)
+                if self.on_source_switched:
+                    self.on_source_switched(switched)
             return True
 
         # 2) The receiver wants to know what the source plays. Answer with a
@@ -396,6 +505,22 @@ class SourceRole:
             session.result(st, StatusBuilder.get_volume_reply(self.volume_provider().level))
             return True
 
+        # A transport key pressed on the listener: it does not pause its own
+        # rendering of our stream, it hands the key to us, as to the machine
+        # it borrows the source from, and plays on until we say otherwise.
+        if "<Forward" in xml and "beocore.tunnel.1" in xml:
+            try:
+                raw = base64.b64decode(st.tag("data") or "")
+            except (ValueError, TypeError):
+                raw = b""
+            code = raw[TUNNEL_KEY_AT] if len(raw) > TUNNEL_KEY_AT else None
+            log.info("<< tunnel: %s", raw.hex(" ") if raw else xml[:160])
+            if code is not None and code != TUNNEL_KEY_RELEASE and self.on_key:
+                self.on_key(code)
+            if typ in ("get", "set") and st.id:
+                session.result(st, "<Forward xmlns='beocore.tunnel.1'/>")
+            return True
+
         # The receiver's own notifications. STREAMING_STATUS is the one we
         # chase: it is the only thing it reports about actually rendering.
         if "notification" in xml.lower() and typ == "set":
@@ -413,7 +538,7 @@ class SourceRole:
         # feature-not-implemented, and its record of us said source: [].
         if "<GetContactInfo" in xml and typ in ("get", "set"):
             log.warning("<< GetContactInfo — someone asks for our catalogue")
-            exp = self.experience
+            exp = self.offered()
             if exp is None:
                 session.result(st, "<GetContactInfo xmlns='beocore.product.1'>"
                                    + self.catalog.contact_info_xml(self.ident)
@@ -425,7 +550,7 @@ class SourceRole:
         # OneWayJoin: the speaker asks every known device what it has to play.
         if "<Experiences" in xml and typ in ("get", "set"):
             log.warning("<< Experiences — answering with our experience")
-            session.result(st, Catalog.experiences_xml(self.ident, self.experience))
+            session.result(st, Catalog.experiences_xml(self.ident, self.offered()))
             return True
         return False
 

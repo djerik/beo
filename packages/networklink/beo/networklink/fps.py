@@ -30,6 +30,15 @@ Hz)» and «format 2 (S16LE, 48000 Hz)». We send ONLY format 1, to every
 product: every listener plays 44.1 kHz, so the rate is a constant of this
 library, not a property of the listener.
 
+A listener that misses a datagram asks for it again: a 6-byte UDP request to
+the source's address on the stream port plus one, ``0x1235`` (the port plus
+one, as the magic is the port), a count, and that many sequence numbers, all
+big-endian 16-bit. It asks again every few seconds until the datagram comes.
+The source answers by sending the datagram once more, as it was. Unanswered,
+the listener's player is a datagram's worth of samples short of the
+timestamps it is given, and starts itself over to catch up: a gap in the
+sound every few seconds.
+
 Beside the UDP stream the source opens a TCP connection to the same port on
 the receiver and sends one 0x0a byte per second. The receiver uses it to
 notice the source vanishing without waiting for the audio to dry up. The
@@ -37,6 +46,7 @@ receiver does not answer it, and the source port is not shared with UDP.
 """
 from __future__ import annotations
 
+import collections
 import logging
 import socket
 import struct
@@ -44,7 +54,7 @@ import sys
 import threading
 import time
 from dataclasses import dataclass
-from typing import Iterator, List, Optional, Set, Tuple
+from typing import Dict, Iterator, List, Optional, Set, Tuple
 
 try:                                                   # Python 3.8+
     from typing import Protocol
@@ -55,6 +65,8 @@ log = logging.getLogger("beo.networklink.fps")
 
 PORT = 1234
 MAGIC = 0x1234
+REQUEST_MAGIC = 0x1235         # a listener's request for a datagram again, on PORT + 1
+RECENT_DATAGRAMS = 256         # kept for such requests: about six seconds
 HEADER_BYTES = 32
 CHANNELS = 2
 BYTES_PER_SAMPLE = 2
@@ -198,6 +210,93 @@ assert len(build_marker(1)) == 16, "the marker must be 16 bytes"
 assert len(build_header(0, 0, 0)) == 32, "the header must be 32 bytes"
 
 
+class Retransmitter:
+    """Takes the listeners' requests for datagrams again, on one port, and
+    hands each to the sender that streams to the asking address.
+
+    One per request port in the process: every stream to every listener is
+    asked for on the same port, and the asker's address says which stream.
+    """
+
+    def __init__(self, port: int):
+        self.port = port
+        self._senders: Dict[str, "FpsSender"] = {}
+        self._lock = threading.Lock()
+        self._sock = None
+        self._failed = False
+        self.requests = 0
+
+    def register(self, sender: "FpsSender") -> None:
+        with self._lock:
+            self._senders[sender.host] = sender
+            if self._sock is None and not self._failed:
+                self._open()
+
+    def unregister(self, sender: "FpsSender") -> None:
+        with self._lock:
+            if self._senders.get(sender.host) is sender:
+                del self._senders[sender.host]
+
+    def _open(self) -> None:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.bind(("", self.port))
+        except OSError as e:
+            # Without it the streams still run; a lost datagram then stays
+            # lost, and the listener resyncs over it.
+            log.warning("FPS: port %d is taken (%s): listeners' requests for lost datagrams "
+                        "go unanswered", self.port, e)
+            self._failed = True
+            s.close()
+            return
+        s.settimeout(1.0)
+        self._sock = s
+        threading.Thread(target=self._serve, daemon=True, name="fps-retransmit-%d" % self.port).start()
+
+    def _serve(self) -> None:
+        sock = self._sock
+        while sock is not None:
+            try:
+                data, addr = sock.recvfrom(512)
+            except socket.timeout:
+                continue
+            except OSError:
+                return
+            sequences = parse_request(data)
+            if sequences is None:
+                continue
+            self.requests += 1
+            with self._lock:
+                sender = self._senders.get(addr[0])
+            if sender is None:
+                log.info("FPS: %s asks for datagrams again, but no stream goes there", addr[0])
+                continue
+            for seq in sequences:
+                sender.resend(seq)
+
+
+def parse_request(data: bytes) -> Optional[List[int]]:
+    """The sequence numbers a request names, or None for something else."""
+    if len(data) < 6 or struct.unpack(">H", data[:2])[0] != REQUEST_MAGIC:
+        return None
+    count = struct.unpack(">H", data[2:4])[0]
+    if len(data) < 4 + 2 * count:
+        return None
+    return list(struct.unpack(">%dH" % count, data[4:4 + 2 * count]))
+
+
+_retransmitters: Dict[int, Retransmitter] = {}
+_retransmitters_lock = threading.Lock()
+
+
+def retransmitter(port: int) -> Retransmitter:
+    with _retransmitters_lock:
+        r = _retransmitters.get(port)
+        if r is None:
+            r = _retransmitters[port] = Retransmitter(port)
+        return r
+
+
 def _set_priority(sok) -> None:
     """Mark the socket AF41, and ask the kernel to send it in the matching queue.
 
@@ -290,6 +389,10 @@ class FpsSender:
         self._marker_n = 2             # 2 at start, +1 per event
         self._markers_sent = 0
         self._resets = 0
+        # What went out lately, by sequence, for a listener that asks again.
+        self._recent: "collections.deque[Tuple[int, bytes]]" = collections.deque(maxlen=RECENT_DATAGRAMS)
+        self.resent = 0
+        self.not_kept = 0
         # Injection points for tests (FakeClock pacing): perf_counter and the
         # precise wait. Production uses the real ones.
         self._now = time.perf_counter
@@ -346,6 +449,7 @@ class FpsSender:
         except OSError:
             pass
         self._running = True
+        retransmitter(self.port + 1).register(self)
         threading.Thread(target=self._pump_timeline if self._indexed is not None else self._pump,
                          daemon=True, name="fps-pump").start()
         threading.Thread(target=self._heartbeat, daemon=True, name="fps-heartbeat").start()
@@ -380,8 +484,24 @@ class FpsSender:
                 shown += 1
                 log.warning("FPS: the receiver wrote on the heartbeat: %s", b[:32].hex())
 
+    def resend(self, sequence: int) -> bool:
+        """Send the datagram with this sequence once more, as it went out.
+        False when it is no longer kept."""
+        for seq, datagram in reversed(self._recent):
+            if seq == sequence:
+                try:
+                    self._udp.sendto(datagram, (self.host, self.port))
+                except Exception as e:                  # noqa: BLE001
+                    log.info("FPS: could not resend %d (%s)", sequence, e)
+                    return False
+                self.resent += 1
+                return True
+        self.not_kept += 1
+        return False
+
     def stop(self) -> None:
         self._running = False
+        retransmitter(self.port + 1).unregister(self)
         for s in (self._tcp, self._udp):
             try:
                 if s:
@@ -389,7 +509,9 @@ class FpsSender:
             except OSError:
                 pass
         self._tcp = self._udp = None
-        log.info("FPS: stopped after %d datagrams", self.datagrams_sent)
+        log.info("FPS: stopped after %d datagrams, %d plan reset(s), %d sent again on request, "
+                 "%d asked for but no longer kept", self.datagrams_sent, self._resets,
+                 self.resent, self.not_kept)
 
     def send_marker(self) -> None:
         """The control datagram at pause/play — see MARKER_4_7. Uses a
@@ -442,6 +564,7 @@ class FpsSender:
         try:
             self._udp.sendto(datagram, (self.host, self.port))
             self.datagrams_sent += 1
+            self._recent.append((self.sequence, datagram))
         except Exception as e:
             log.warning("FPS: send failed (%s)", e)
             return False
@@ -516,6 +639,7 @@ class FpsSender:
             try:
                 self._udp.sendto(datagram, (self.host, self.port))
                 self.datagrams_sent += 1
+                self._recent.append((self.sequence, datagram))
             except Exception as e:
                 log.warning("FPS: send failed (%s)", e)
                 return

@@ -35,7 +35,7 @@ import tarfile
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Tuple
 
 log = logging.getLogger("beo.networklink.nsdk")
 
@@ -118,6 +118,9 @@ class FpsdLog:
         self.running: List[RunningBuf] = []
         self.dropouts: List[str] = []
         self.ptp: List[str] = []
+        self.discontinuities: List[Tuple[str, int]] = []     # (stamp, samples)
+        self.resyncs: List[str] = []
+        self.retrans: List[Tuple[str, int]] = []              # (stamp, asked)
         self._assess()
 
     @staticmethod
@@ -158,8 +161,70 @@ class FpsdLog:
                 continue
             if "Sink dropout" in l or "critically low" in l or "Drop buffer" in l:
                 self.dropouts.append(l[9:21] + " " + re.sub(r"\s+\[/__w.*$", "", l[26:])[:150])
+            m = re.search(r"timestamp discontinuity of (-?\d+) samples", l)
+            if m:
+                self.discontinuities.append((l[9:21], int(m.group(1))))
+            if "Resync'ing" in l:
+                self.resyncs.append(l[9:21])
+            m = re.search(r"retrans asked=\[(\d+),(\d+),(\d+),(\d+)\]", l)
+            if m:
+                self.retrans.append((l[9:21], int(m.group(4))))
             if "ptpd" in l or "PTPClock" in l or "RAWClock" in l:
                 self.ptp.append(l[9:21] + " " + re.sub(r"\s+\[/__w.*$", "", l[26:])[:150])
+
+    def health(self, window_s: float = 600.0) -> dict:
+        """How the latest listening went, as counts: the last ``window_s``
+        seconds of the log up to its last line.
+
+        A discontinuity is a hole in the stream the listener had to bridge, in
+        samples; 1062 is one datagram. A resync is the listener starting its
+        player over, which is heard as a glitch. ptsToPlayMs is how far ahead
+        the stream arrives; around 1000 is a source's own.
+        """
+        import datetime as _dt
+
+        def moment(line: str) -> Optional[float]:
+            # "YYYYMMDD HH:MM:SS.mmm ..." — with the day, so a night's log that
+            # runs past midnight still counts back across it.
+            try:
+                return _dt.datetime.strptime(line[:21], "%Y%m%d %H:%M:%S.%f").timestamp()
+            except ValueError:
+                return None
+        stamped = [(t, l) for l in self.lines if (t := moment(l)) is not None]
+        if not stamped:
+            return {"lines": 0}
+        end = stamped[-1][0]
+        recent = [l for t, l in stamped if end - t <= window_s]
+        holes, sizes, resyncs, dropouts, retrans, pts = [], {}, 0, 0, 0, []
+        for l in recent:
+            m = re.search(r"timestamp discontinuity of (-?\d+) samples", l)
+            if m:
+                n = int(m.group(1))
+                holes.append(n)
+                k = max(1, round(abs(n) / 1062))
+                sizes[k] = sizes.get(k, 0) + 1
+            if "Resync'ing" in l:
+                resyncs += 1
+            if "Sink dropout" in l or "critically low" in l or "Drop buffer" in l:
+                dropouts += 1
+            m = re.search(r"retrans asked=\[(\d+),(\d+),(\d+),(\d+)\]", l)
+            if m:
+                retrans += int(m.group(4))
+            m = re.search(r"ptsToPlayMs=(-?\d+)/", l)
+            if m:
+                pts.append(int(m.group(1)))
+        return {
+            "lines": len(stamped),
+            "from": stamped[0][1][:21], "to": stamped[-1][1][:21],
+            "window_from": recent[0][:21],
+            "discontinuities": len(holes),
+            "holes_by_datagrams": dict(sorted(sizes.items())),
+            "resyncs": resyncs,
+            "dropouts": dropouts,
+            "retransmissions_asked": retrans,
+            "ptsToPlayMs": {"min": min(pts), "mean": round(statistics.mean(pts)), "max": max(pts)} if pts else None,
+            "reports": len(pts),
+        }
 
     def pts_to_play_ms(self) -> List[int]:
         """ptsToPlayMs (now) per running-buffer line. ~1080 = healthy."""
@@ -192,4 +257,28 @@ class FpsdLog:
         return round(statistics.median(d) * 1e9) if d else None
 
 
-__all__ = ["NsdkClient", "FpsdLog", "InvalidPts", "RunningBuf"]
+def main(argv: Optional[List[str]] = None) -> int:
+    """``python -m beo.networklink.nsdk <ip> [--minutes N]``: fetch the
+    listener's logs and say how the latest listening went."""
+    import argparse
+    ap = argparse.ArgumentParser(description="How a product's last minutes of listening went, "
+                                             "from its own log.")
+    ap.add_argument("ip", help="the product that listened, by address")
+    ap.add_argument("--minutes", type=float, default=10.0,
+                    help="how far back from the log's last line to count (default 10)")
+    ap.add_argument("--save", help="also write the fetched log package here")
+    a = ap.parse_args(argv)
+    tgz = NsdkClient(a.ip).fetch_logs()
+    if a.save:
+        with open(a.save, "wb") as f:
+            f.write(tgz)
+    h = FpsdLog.parse(tgz).health(a.minutes * 60)
+    print(json.dumps(h, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
+
+__all__ = ["NsdkClient", "FpsdLog", "InvalidPts", "RunningBuf", "main"]

@@ -403,3 +403,15 @@ def test_the_products_that_play_along_are_chosen_from_the_page(monkeypatch, tmp_
     bad.command, bad.body = "POST", b"{}"
     s.serve(bad, "/web/play-on")
     assert bad.status == 400
+
+
+def test_the_sources_are_listed_as_the_product_offers_them(monkeypatch):
+    from beo.mozart import facade
+    s, _ = stream()
+    monkeypatch.setattr(facade, "source_choices",
+                        lambda: [{"id": "b-2", "name": "CD", "active": False},
+                                 {"id": "b-3", "name": "Radio", "active": True}])
+    r = get(s, "/web/sources")
+    assert r.status == 200 and r.headers["Content-Type"] == "application/json"
+    assert json.loads(r.wfile.getvalue()) == {"items": [{"id": "b-2", "name": "CD", "active": False},
+                                                        {"id": "b-3", "name": "Radio", "active": True}]}

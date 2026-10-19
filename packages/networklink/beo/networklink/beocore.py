@@ -216,6 +216,15 @@ class Session(threading.Thread):
         if self.peer_jid:
             self.send(f"<query xmlns='{DISCO}'/>", typ="get")
 
+    def _learn_from_header(self, text: str) -> None:
+        m = STREAM_HEADER.search(text)
+        if m is None:
+            return
+        frm = {a[0]: (a[1] or a[2]) for a in ATTR.findall(m.group(1))}.get("from", "")
+        if frm:
+            self.peer_jid = frm
+            self._peer_known.set()
+
     def run(self) -> None:
         buf = b""
         while not self._stop.is_set():
@@ -235,6 +244,12 @@ class Session(threading.Thread):
             text = buf.decode("utf-8", "replace")
             if self._greeting_owed:
                 self._greet(text)
+            elif not self.peer_jid:
+                # A peer we dialled names itself in its stream header, and a
+                # peer that already knows our capabilities sends nothing after
+                # it. Learning the jid here is what lets our first request go
+                # out as soon as the peer has spoken, not after a timeout.
+                self._learn_from_header(text)
             end = 0
             for m in STANZA.finditer(text):
                 self._handle(m.group(0))
@@ -263,8 +278,12 @@ class Session(threading.Thread):
         self._peer_known.wait(timeout)
         return self.peer_jid
 
-    def on(self, handler: Handler) -> None:
-        self.handlers.append(handler)
+    def on(self, handler: Handler, first: bool = False) -> None:
+        """Add a handler; ``first`` puts it ahead of those already there."""
+        if first:
+            self.handlers.insert(0, handler)
+        else:
+            self.handlers.append(handler)
 
     # ---------------------------------------------------------------- wire
     def _send(self, t: str) -> None:

@@ -277,7 +277,7 @@ def main(argv=None) -> int:
             clock = out.role.clock
             lead = getattr(clock, "lead_ns", None)
             now_ns = (lambda: clock.now_ns() - lead) if lead is not None else None
-            listening = BeolinkIn(out.ident, out.role.catalog, dial=dial,
+            listening = BeolinkIn(out.ident, out.role.catalog, dial=dial, source=out,
                                   host=host[:-len(".local")], machine=backend,
                                   device=a.playback_device, speaker=speaker,
                                   web=web, now_ns=now_ns,

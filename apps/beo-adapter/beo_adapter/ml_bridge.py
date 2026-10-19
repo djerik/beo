@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from typing import Optional
 
 from beo.masterlink.bus import MlBus, SerialTransport
@@ -19,6 +20,10 @@ from beo.masterlink.profiles import MusicSystemProfile
 from beo.masterlink.roles.source_center import Metadata, N_MUSIC, SourceCenter
 
 from beo.mozart import facade
+
+# How long a source selection may take before a standby from the machine is
+# its own again.
+SWITCH_SECONDS = 10.0
 
 log = logging.getLogger("beo-adapter.ml")
 
@@ -75,6 +80,10 @@ class MlBridge(facade.MlBackend):
         # Called when the machine turns away from the network source it was
         # playing: another source was picked on it, or it was switched off.
         self.on_network_source_left = None
+        # The source selection under way, if any: the machine reports standby
+        # between two sources, and that is not it switching off.
+        self._switching = None
+        self._switching_since = 0.0
 
     def start(self) -> None:
         self.bus.start()
@@ -295,6 +304,14 @@ class MlBridge(facade.MlBackend):
     # ---- machine -> app ---------------------------------------------------
     def _state_changed(self, old: MusicSystemState, new: MusicSystemState) -> None:
         if new.play_state == PlayState.STANDBY and old.play_state != PlayState.STANDBY:
+            # Bounded, so that a selection the machine never answers does not
+            # hide a standby for good.
+            switching = self._switching
+            if (switching is not None and not switching.done()
+                    and time.monotonic() - self._switching_since < SWITCH_SECONDS):
+                log.info("standby reported while the machine switches source: the switch, "
+                         "not the machine switching off")
+                return
             # The machine went to standby (Beo4, the app, or itself): nothing is on
             # the bus any more, so drop the listeners and tell the app.
             facade.go_standby(from_app=False)
@@ -372,7 +389,9 @@ class MlBridge(facade.MlBackend):
         if source is None:
             log.warning("unknown source %r", name)
             return
-        self._log_result(self.player.select_source(source), "select_source(%s)" % source.key)
+        self._switching = self.player.select_source(source)
+        self._switching_since = time.monotonic()
+        self._log_result(self._switching, "select_source(%s)" % source.key)
 
     def request_audio(self) -> bool:
         self.player.request_distribution(self._own_source())

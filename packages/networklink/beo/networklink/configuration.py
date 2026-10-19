@@ -18,6 +18,7 @@ item's name are written ``%2E``.
 from __future__ import annotations
 
 import logging
+import re
 import socket
 import time
 from typing import Callable, Iterable, Optional, Sequence, Tuple
@@ -85,8 +86,11 @@ def source_entry(src: SourceDescriptor, ident: ProductIdentity, index: int) -> s
         item("Linkable#1", data="true" if src.linkable else "false"),
         item("ContentProtection#1", _schemes((src.protection,))),
         item("EmbeddedBinary#1", _schemes(src.embedded_binary)),
+        # The jid inside a source's id is written with its dots written out,
+        # as the item names are: that is the form every product writes, and
+        # a product that borrows the source looks for that form.
         item("UniqueSourceId#1", item("Source#1", data=src.key),
-             item("Jid#1", data=ident.full_jid())),
+             item("Jid#1", data=key(ident.full_jid()))),
         item("RecommendedIrMappings#1", codes or empty()),
         item("Index#1", data=index),
         item("ProductName#1", data=ident.name))
@@ -129,6 +133,40 @@ def enrolled(document: str, jid: str) -> bool:
     """Whether the document has an entry for this jid (a deletion mark is not one)."""
     devices = document.split("<deleted>", 1)[0]
     return '<item name="%s">' % key(jid) in devices
+
+
+def own_entry(document: str, jid: str) -> str:
+    """Our entry's text in the document, or an empty string."""
+    devices = document.split("<deleted>", 1)[0]
+    head = '<item name="%s">' % key(jid)
+    start = devices.find(head)
+    if start < 0:
+        return ""
+    following = re.search(r'<item name="\d+%2E\d+%2E\d+@', devices[start + len(head):])
+    return devices[start:start + len(head) + following.start()] if following else devices[start:]
+
+
+def leaves(entry_xml: str) -> dict:
+    """Every value in an entry under its path, the leader's revision stamps
+    left out: what the entry says, in a form two entries can be compared in."""
+    out, stack = {}, []
+    for m in re.finditer(r'<item name="([^"]+)">|</item>|<data>([^<]*)</data>', entry_xml):
+        if m.group(0) == "</item>":
+            if stack:
+                stack.pop()
+        elif m.group(0).startswith("<data>"):
+            if stack and stack[-1] != "_revision":
+                out["/".join(stack)] = m.group(2)
+        else:
+            stack.append(m.group(1))
+    return out
+
+
+def entry_differs(document: str, jid: str, entry_xml: str) -> bool:
+    """Whether our entry in the document says something else than the one we
+    write now: a source renamed, a jid in another form. The leader stamps
+    revisions into what it stores; those do not count."""
+    return leaves(own_entry(document, jid)) != leaves(entry_xml)
 
 
 def find_leader(seconds: float = 8.0) -> Optional[Tuple[str, str]]:
@@ -179,7 +217,8 @@ def ask(ident: ProductIdentity, ip: str, jid: str, body: str, *, timeout: float 
         session.close()
 
 
-PRESENT, ENROLLED, NO_LEADER, NO_ANSWER, REFUSED = "present", "enrolled", "no leader", "no answer", "refused"
+PRESENT, ENROLLED, REWRITTEN = "present", "enrolled", "rewritten"
+NO_LEADER, NO_ANSWER, REFUSED = "no leader", "no answer", "refused"
 
 
 def ensure_enrolled(ident: ProductIdentity, entry_xml: str, *,
@@ -189,7 +228,9 @@ def ensure_enrolled(ident: ProductIdentity, entry_xml: str, *,
 
     The document is read first. An entry that is already there is left as it
     is, whatever it says: this adds a product, it does not edit one, and it
-    never removes anything.
+    never removes anything. The one exception is our own entry when it no
+    longer says what we write now, as after a rename or a change of form:
+    that entry is ours to correct, and it is sent again whole.
     """
     who = leader()
     if who is None:
@@ -200,18 +241,24 @@ def ensure_enrolled(ident: ProductIdentity, entry_xml: str, *,
                    session_factory=session_factory)
     if document is None:
         return NO_ANSWER
-    if enrolled(document, jid):
+    present = enrolled(document, jid)
+    if present and not entry_differs(document, jid, entry_xml):
         return PRESENT
-    log.warning("%s is not in the configuration held by %s; sending its entry", jid, leader_jid)
+    if present:
+        log.warning("%s is in the configuration held by %s but not as written now; sending its "
+                    "entry again", jid, leader_jid)
+    else:
+        log.warning("%s is not in the configuration held by %s; sending its entry", jid, leader_jid)
     reply = ask(ident, ip, leader_jid, insert_request(entry_xml), session_factory=session_factory)
     if reply is None:
         return NO_ANSWER
     if "<accepted>1</accepted>" not in reply:
         log.error("the leader did not accept the entry: %s", reply[:400])
         return REFUSED
-    return ENROLLED
+    return REWRITTEN if present else ENROLLED
 
 
 __all__ = ["NS", "SERVICE", "device_entry", "source_entry", "insert_request",
-           "subscribe_request", "enrolled", "item", "key", "find_leader", "ask",
-           "ensure_enrolled", "PRESENT", "ENROLLED", "NO_LEADER", "NO_ANSWER", "REFUSED"]
+           "subscribe_request", "enrolled", "own_entry", "leaves", "entry_differs", "item", "key",
+           "find_leader", "ask", "ensure_enrolled", "PRESENT", "ENROLLED", "REWRITTEN",
+           "NO_LEADER", "NO_ANSWER", "REFUSED"]

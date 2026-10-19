@@ -111,6 +111,7 @@ def test_the_radio_is_picked_with_its_key_and_shown_when_the_machine_says_so(mon
     assert fake.sent[0].body[-2:] == bytes([0x6F, Beo4.RADIO])
     assert facade.current_source()["name"] == "Radio"
     assert facade.now_metadata()["title"] == "Radio"
+    assert [(c["name"], c["active"]) for c in facade.source_choices()] == [("CD", False), ("Radio", True)]
     # a key on the radio is addressed to the radio, and audio is asked of it
     br.press("skip")
     assert wait(lambda: fake.sent[-1].body[-2:] == bytes([0x6F, Beo4.STEP_UP]))
@@ -120,6 +121,7 @@ def test_the_radio_is_picked_with_its_key_and_shown_when_the_machine_says_so(mon
     fake.inject(status(2, 1, 0x02, 0x2A))
     assert wait(lambda: facade._active["source"] is None and facade._active["cd"] == 2)
     assert facade.current_source()["type"] == {"value": "classicsAdapter"}
+    assert [c["active"] for c in facade.source_choices()] == [True, False]
     br.close()
 
 
@@ -268,3 +270,61 @@ def test_a_machine_with_one_disc_plays_it_whichever_disc_the_app_picks(monkeypat
     time.sleep(0.1)
     assert keys() == [Beo4.CD]
     br.close()
+
+
+def test_a_standby_reported_while_the_machine_switches_source_is_the_switch(monkeypatch):
+    monkeypatch.setattr(facade, "_active", dict(facade._active, source=None, state="started"))
+    monkeypatch.setattr(facade, "_power", {"value": "on"})
+    gone = []
+    monkeypatch.setattr(facade, "go_standby", lambda from_app=True: gone.append(from_app))
+
+    class RadioFake(Fake):
+        def send(self, tg):
+            self.sent.append(tg)
+    fake = RadioFake()
+    br = MlBridge(BS9000, transport=fake, source_center=False)
+    br.start()
+    fake.inject(status(1, 1, 0x02, 0x2A))
+    assert wait(lambda: facade._active["state"] == "started")
+    br.select_source("RADIO")
+    assert wait(lambda: any(decode_beo4(t)[0] == Beo4.RADIO for t in fake.sent if decode_beo4(t)))
+    # between the two sources the machine says standby: not a standby
+    fake.inject(status(1, 1, 0x06, 0x2A))
+    time.sleep(0.3)
+    assert gone == []
+    fake.inject(radio_status())
+    assert wait(lambda: facade._active["source"] == "RADIO")
+    assert wait(lambda: br._switching.done())
+    # afterwards a standby is what it says
+    fake.inject(status(1, 1, 0x06, 0x2A))
+    assert wait(lambda: gone == [False])
+    br.close()
+
+
+def test_a_listeners_key_goes_the_way_of_the_apps_command(monkeypatch):
+    monkeypatch.setattr(facade, "_active", dict(facade._active, source=None, state="started", cd=1, track=1))
+    sent = []
+    monkeypatch.setattr(facade, "ml_send", lambda *keys, gap=0.35: sent.extend(keys))
+    told = []
+    monkeypatch.setattr(facade, "_beolink_out", type("Out", (), {"set_state": staticmethod(told.append)})())
+    facade.listener_key(0x36)
+    assert sent == ["stop"] and facade._active["state"] == "paused" and told == ["pause"]
+    facade.listener_key(0x35)
+    assert sent == ["stop", "play"] and facade._active["state"] == "started" and told == ["pause", "play"]
+    facade.listener_key(0x7E)
+    assert sent == ["stop", "play"]
+
+
+def test_a_listener_that_comes_and_goes_by_itself_is_drawn_and_undrawn(monkeypatch):
+    events = []
+    monkeypatch.setattr(facade.notifier, "send", lambda name, data: events.append((name, data)))
+    monkeypatch.setattr(facade, "_beolink_listeners", [])
+    monkeypatch.setattr(facade, "_active", dict(facade._active, state="started"))
+    facade.listener_joined("2730.1200322.90000010@products.bang-olufsen.com")
+    assert facade._beolink_listeners == ["2730.1200322.90000010@products.bang-olufsen.com"]
+    assert events[-1][0] == "WebSocketEventBeolinkJoinResult" and events[-1][1]["type"] == "expand"
+    facade.listener_left("2730.1200322.90000010@products.bang-olufsen.com")
+    assert facade._beolink_listeners == []
+    assert events[-1] == ("WebSocketEventNotification", {"value": "beolinkListeners", "code": ""})
+    facade.listener_left("nobody@products.bang-olufsen.com")
+    assert len(events) == 2

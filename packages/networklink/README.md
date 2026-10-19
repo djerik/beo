@@ -8,22 +8,23 @@ products' PTP clock, and the NSDK side door on port 80.
 The protocol is undocumented. Every XML body, field order, iq id, timing
 constant and byte layout here is the one shipping products use.
 
-Version 0.1.0 — Python >= 3.9, runtime dependency: `zeroconf`.
+Version 0.1.0 — Python >= 3.9, runtime dependency: `zeroconf`; `dbus` (python3-dbus) where
+the product's records are to go through an Avahi daemon, which is where one runs.
 
 ## Module map
 
 | Module | What | Threading |
 |---|---|---|
 | `beo.networklink.sources` | `SourceDescriptor`, `Catalog`, `Experience`, `NowPlaying`, `Volume`, `StatusBuilder`, `Requests`; `STANDARD_SOURCES` (what a networked product lists), `SOURCES` (what one can render) | pure functions |
-| `beo.networklink.beocore` | `Session` (one XMPP connection to one peer, opened by us or accepted from the peer), `Server` (the port peers open sessions on), `Stanza`, `IdCounter` (decimal ids only) | one reader thread per session; one accept thread |
-| `beo.networklink.roles.source` | `SourceRole`: expand / unexpand / set_state / set_now_playing, the handshake and teardown | blocking `expand()`; one progress thread per listener |
+| `beo.networklink.beocore` | `Session` (one XMPP connection to one peer, opened by us or accepted from the peer; a dialled peer's jid is read from its stream header), `Server` (the port peers open sessions on), `Stanza`, `IdCounter` (decimal ids only) | one reader thread per session; one accept thread |
+| `beo.networklink.roles.source` | `SourceRole`: expand / unexpand / set_state / set_now_playing, the handshake and teardown; `adopt` for a listener that dialled us for a source it borrowed or joined, a Connect that names another of our sources switches the experience, the transport keys a listener sends through the tunnel go to `on_key`, and `experience_provider` says what plays while nobody listens | blocking `expand()`; one progress thread per listener |
 | `beo.networklink.roles.listener` | `ListenerRole`: answer a source's ConnectRequest, send our Connect, receive its stream and notifications, leave. The stream goes to whatever sink is set, and is only counted without one | one thread per connect; one receiver thread |
-| `beo.networklink.fps` | `AudioFormat`, `FpsClock` / `OffsetPtpClock` / `MonotonicClock`, `build_header`, `build_marker`, `FpsSender`, `FpsReceiver` | sender: pump + heartbeat threads |
+| `beo.networklink.fps` | `AudioFormat`, `FpsClock` / `OffsetPtpClock` / `MonotonicClock`, `build_header`, `build_marker`, `FpsSender` (keeps its last six seconds for a listener that asks for a datagram again), `Retransmitter` (one per process on the stream port plus one, where those requests arrive), `FpsReceiver` | sender: pump + heartbeat threads; one request thread per port |
 | `beo.networklink.ptp` | `PtpSlaveClock`: an IEEE 1588 PTPv2 slave that reads the products' own clock off the network | one listener thread |
-| `beo.networklink.audio` | `AudioSource` protocol, `ToneSource`, `Silence`, `Fanout`, `AlsaCapture` (arecord), `AlsaPlayback` (aplay, each received block at its network time) | reader threads; one writer thread |
-| `beo.networklink.configuration` | the configuration a network of products shares: build a product's entry, find the leader, read the document, add the entry if it is missing | blocking; one session per request |
-| `beo.networklink.nsdk` | `NsdkClient` (port 80 getData/setData/stream/fetch_logs), `FpsdLog` (parse a listener's fpsd log, estimate the PTP offset) | blocking urllib |
-| `beo.networklink.discovery` | `Peer`, `Browser`, `PeerDirectory`, `Advertiser` (the four mDNS records, TTL 120/4500) | zeroconf's own threads |
+| `beo.networklink.audio` | `AudioSource` protocol, `ToneSource`, `Silence`, `Fanout` (counts the blocks it drops for a slow subscriber), `AlsaCapture` (arecord), `AlsaPlayback` (aplay, each received block at its network time) | reader threads; one writer thread |
+| `beo.networklink.configuration` | the configuration a network of products shares: build a product's entry, find the leader, read the document, add the entry if it is missing or send it again when it no longer says what we write | blocking; one session per request |
+| `beo.networklink.nsdk` | `NsdkClient` (port 80 getData/setData/stream/fetch_logs), `FpsdLog` (parse a listener's fpsd log, estimate the PTP offset, `health()` for how its last minutes of listening went; `python -m beo.networklink.nsdk <ip>` prints it) | blocking urllib |
+| `beo.networklink.discovery` | `Peer`, `Browser`, `PeerDirectory`, `Advertiser` (the four mDNS records through zeroconf, TTL 120/4500), `AvahiAdvertiser` (the same through the machine's Avahi daemon, which writes the jid as the one name label the products ask for), `advertiser()` (picks Avahi where a daemon answers) | zeroconf's own threads; Avahi's daemon |
 
 `ProductIdentity` (jid, name, MAC, type/item/serial, host) lives in
 `beo.product.identity` and is re-exported here.
@@ -71,7 +72,7 @@ fallback is `OffsetPtpClock` with an offset measured once from a listener's own
 log: stream once (the listener rejects the PTSs), then
 
 ```python
-from beo.networklink import NsdkClient, FpsdLog
+from beo.networklink.nsdk import NsdkClient, FpsdLog
 log = FpsdLog.parse(NsdkClient("203.0.113.10").fetch_logs())
 offset_ns = log.estimate_offset_ns()      # holds until this machine reboots or the grandmaster changes
 ```

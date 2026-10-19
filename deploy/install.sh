@@ -52,6 +52,9 @@ echo "== packages"
 missing=""
 python3 -c "import serial" 2>/dev/null || missing="$missing python3-serial"
 python3 -c "import zeroconf" 2>/dev/null || missing="$missing python3-zeroconf"
+# Other products are told of this one through the Avahi daemon, which
+# writes the product's jid as the one name label they ask for.
+python3 -c "import dbus" 2>/dev/null || missing="$missing python3-dbus"
 # The product's page sends its sound to a browser through ffmpeg.
 command -v ffmpeg >/dev/null 2>&1 || missing="$missing ffmpeg"
 if [ -n "$missing" ]; then

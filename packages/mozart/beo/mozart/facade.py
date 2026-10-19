@@ -222,6 +222,25 @@ def ml_wake():
         log.warning("     -> ML: could not wake the machine (%s)", e)
 
 
+def ml_select_source(slot):
+    """Bring the machine to this source, unless it plays it already: asked
+    again, a machine starts the source over. True when the machine was
+    brought to it here, so that whoever asked knows the machine is theirs to
+    switch off. Silent no-op without a machine."""
+    if _ml is None:
+        return False
+    if _active["source"] == slot and _active["state"] == "play":
+        log.info("     -> ML: already playing %s", slot)
+        return False
+    try:
+        _ml.select_source(slot)
+        log.info("     -> ML: brought to %s", slot)
+        return True
+    except Exception as e:
+        log.warning("     -> ML: could not bring the machine to %s (%s)", slot, e)
+        return False
+
+
 def plain_source(slot):
     """The product's plain source in a slot, or None: for the discs too."""
     for source in PROFILE.plain_sources:
@@ -533,7 +552,87 @@ def apply_ml_state(cd=None, track=None, state=None):
         announce_track()
     if state in ("started", "paused"):
         set_power("on")
+    if changed:
+        _listeners_follow_state()
     return {"ok": True, "cd": cd, "track": track, "state": state}
+
+
+def _listeners_follow_state():
+    """The products that play our sound hear whether it plays or pauses, so
+    a pause stays a pause with them, whoever asked for it."""
+    if _beolink_out is None:
+        return
+    try:
+        _beolink_out.set_state("play" if _active["state"] == "started" else "pause")
+    except Exception as e:                              # noqa: BLE001
+        log.warning("     -> the listeners were not told the state: %s", e)
+
+
+# The transport keys a listener sends through the tunnel, by their code.
+# Beo4 has no pause key: on a CD player STOP is what pauses it.
+LISTENER_KEYS = {0x35: "play", 0x36: "pause", 0x1E: "skip", 0x1F: "prev"}
+
+
+def listener_key(code):
+    """A key pressed on a product that plays our sound, handed to us as the
+    machine's own keys are. It goes the way the app's command goes."""
+    command = LISTENER_KEYS.get(code)
+    if command is None:
+        log.info("     -> key 0x%02x from a listener is not a transport key; nothing done", code)
+        return
+    log.info("     -> %s, from a listener", command)
+    playback_command(command)
+
+
+def playback_command(command):
+    """play | pause | stop | skip | prev, from the app or from a listener.
+    The HTTP status the app is answered with.
+
+    Those five are all the app knows; anything else is 404, never a made-up
+    state (docs/app-protocol.md §5).
+    """
+    cd = _active["cd"]
+    n = track_count(cd)
+
+    if command in ("play", "pause", "stop"):
+        _active["state"] = {"play": "started", "pause": "paused",
+                            "stop": "stopped"}[command]
+        log.info("     -> %s (CD %d, track %d)", command, cd, _active["track"])
+        notifier.send("WebSocketEventPlaybackState",
+                      {"value": _active["state"]})
+        # Beo4 has no Pause: on a CD player STOP is what pauses it, which is
+        # why both map to the same key here rather than to an invented one.
+        ml_send({"play": "play", "pause": "stop", "stop": "stop"}[command])
+        _listeners_follow_state()
+        return 200
+
+    if command in ("skip", "prev"):
+        if _ml is not None:
+            # Do not guess the new track: the 9000 never says how many a
+            # disc has. Send the key and let the status telegram answer
+            # (docs/app-protocol.md §6).
+            ml_send("skip" if command == "skip" else "prev")
+            _active["progress"] = 0
+            _active["state"] = "started"
+            log.info("     -> %s sent to the 9000; the track number comes "
+                     "back from the machine", command)
+            _listeners_follow_state()
+            return 200
+
+        # No machine attached: keep the emulator usable on its own.
+        step = 1 if command == "skip" else -1
+        _active["track"] = (_active["track"] - 1 + step) % n + 1
+        _active["progress"] = 0
+        _active["state"] = "started"
+        log.info("     -> %s -> CD %d, track %d/%d", command, cd,
+                 _active["track"], n)
+        announce_track()
+        _listeners_follow_state()
+        return 200
+
+    log.warning("     -> unknown command %r (the app knows only "
+                "play/pause/stop/skip/prev)", command)
+    return 404
 
 # Set when the BeoLink audio side is enabled. Without it expand and unexpand
 # behave as they always did: the app gets its 200, and no sound goes anywhere.
@@ -886,6 +985,20 @@ def _expand_joined(jid):
         notifier.send("WebSocketEventPlaybackSource", current_source())
 
 
+def listener_joined(jid):
+    """A product began playing our sound by itself, as one does for a source
+    it has borrowed or joined: the app draws it as it draws an expand."""
+    _expand_joined(jid)
+
+
+def listener_left(jid):
+    """A product stopped playing our sound by itself: it leaves the list the
+    app draws, and the app is made to fetch the list again."""
+    if jid in _beolink_listeners:
+        _beolink_listeners.remove(jid)
+        _notify_listeners_changed()
+
+
 def _expand_result(jid, joined):
     """What became of an expand the BeoLink side accepted, told from its thread.
 
@@ -962,6 +1075,23 @@ def current_source():
         # Line-in is the app's one plain source: a name and nothing to browse.
         return mozart_source("lineIn", plain.name, "lineIn")
     return mozart_source(active_content_uri(), f"CD {_active['cd']}", "classicsAdapter")
+
+
+def source_choices():
+    """The machine's sources as the product's page offers them: the discs as
+    one, under the name the app knows it by, then the plain ones; and which
+    of them plays now. The ids are the ones the app selects by, so the page
+    picks a source the way the app does."""
+    active = source_is_active()
+    plain = plain_source(_active["source"]) if active else None
+    items = []
+    if REMOTE_CA_ID:
+        items.append({"id": REMOTE_CA_ID, "name": _remote_labels.get(REMOTE_CA_ID, "CD"),
+                      "active": active and plain is None})
+    for s in PROFILE.plain_sources:
+        items.append({"id": s.item_id, "name": _remote_labels.get(s.item_id, s.name),
+                      "active": plain is not None and plain.slot == s.slot})
+    return items
 
 
 # Static GET responses. Field types follow the app's DTOs exactly; a wrong type
@@ -1501,50 +1631,8 @@ class Handler(BaseHTTPRequestHandler):
         self._send({})
 
     def _command(self, command):
-        """POST api/v1/playback/command/{play|pause|stop|skip|prev}
-
-        Those five are all the app knows; anything else is 404, never a
-        made-up state (docs/app-protocol.md §5).
-        """
-        cd = _active["cd"]
-        n = track_count(cd)
-
-        if command in ("play", "pause", "stop"):
-            _active["state"] = {"play": "started", "pause": "paused",
-                                "stop": "stopped"}[command]
-            log.info("     -> %s (CD %d, track %d)", command, cd, _active["track"])
-            notifier.send("WebSocketEventPlaybackState",
-                          {"value": _active["state"]})
-            # Beo4 has no Pause: on a CD player STOP is what pauses it, which is
-            # why both map to the same key here rather than to an invented one.
-            ml_send({"play": "play", "pause": "stop", "stop": "stop"}[command])
-            return self._send({}, 200)
-
-        if command in ("skip", "prev"):
-            if _ml is not None:
-                # Do not guess the new track: the 9000 never says how many a
-                # disc has. Send the key and let the status telegram answer
-                # (docs/app-protocol.md §6).
-                ml_send("skip" if command == "skip" else "prev")
-                _active["progress"] = 0
-                _active["state"] = "started"
-                log.info("     -> %s sent to the 9000; the track number comes "
-                         "back from the machine", command)
-                return self._send({}, 200)
-
-            # No machine attached: keep the emulator usable on its own.
-            step = 1 if command == "skip" else -1
-            _active["track"] = (_active["track"] - 1 + step) % n + 1
-            _active["progress"] = 0
-            _active["state"] = "started"
-            log.info("     -> %s -> CD %d, track %d/%d", command, cd,
-                     _active["track"], n)
-            self._announce_track()
-            return self._send({}, 200)
-
-        log.warning("     -> unknown command %r (the app knows only "
-                    "play/pause/stop/skip/prev)", command)
-        return self._send({}, 404)
+        """POST api/v1/playback/command/{play|pause|stop|skip|prev}"""
+        return self._send({}, playback_command(command))
 
     def _announce_track(self):
         announce_track()

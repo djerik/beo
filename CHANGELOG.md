@@ -5,8 +5,78 @@ the application share one version.
 
 ## Unreleased
 
+### Fixed
+
+- **Other products can now find this one's address.** The product's
+  announcement to other products carries its jid as the service's name,
+  and the products ask for that name as one label, dots and all. zeroconf
+  split it at every dot, so they listed the product by name but could not
+  resolve it, showed no IP address under *Discover devices*, answered
+  "Unknown peer" and never dialled it. The announcement now goes through
+  the Pi's Avahi daemon, which keeps the name whole; zeroconf remains the
+  fallback where no daemon runs. The installer adds `python3-dbus`.
+- **The product's source can be borrowed.** In the entry the product writes
+  into the network's shared configuration, the jid inside its source's id
+  was written with literal dots, where every product writes it with the dots
+  written out, as the entry's own name is. A product set up with this one
+  as its primary found no source to borrow. The entry now has the written-out
+  form, and a product that finds its own entry saying something else than
+  it writes now sends it again at start. The source is offered under its
+  own names, CD and RADIO on a music system, with the product's name
+  beside them, as the borrower lists the two.
+- **A product that has borrowed the source can play it.** Such a product
+  opens a session to this one and asks for the source with a Connect of its
+  own, with no request from our side first. That question was declined as
+  not implemented. The source side now takes the caller on as a listener,
+  starts the stream to it and brings the machine to the source, unless it
+  plays it already. When the last such listener goes, a machine switched
+  on for it is switched off again. A listener that then asks for another of the
+  product's sources gets it: the machine switches, and the one stream
+  follows, where before a second stream started beside the first.
+- **The keys on a product that plays this one's sound work.** Play,
+  pause, next and previous pressed there arrive as the machine's own key
+  codes through the product-to-product tunnel, where they went
+  unanswered. They now go the way the app's commands go, and every
+  product that plays the sound is told whether it plays or pauses, so a
+  pause stays a pause with them instead of resuming after a second.
+- **A source switch no longer switches the machine off.** Between two
+  sources the machine reports standby for a moment, and that was taken
+  for it switching off: every listener was dropped. While a selection of
+  ours is under way it is the switch.
+- **A speaker can join the machine's own playing.** Asked what there is
+  to join while the machine played and nobody listened, the product
+  answered with nothing; now it answers with the source the machine is
+  on, and the speaker's own Connect is served.
+- **The app no longer keeps a speaker that left.** A product that stops
+  playing this one's sound by itself now leaves the app's list, and one
+  that starts by itself is drawn in it.
+- **Deeper queues on the way out, and dropped blocks counted.** A block
+  dropped between the sound card and a stream is a hole the listener
+  fills with a resync, which is a glitch. The queues are deep enough to
+  ride out a reader held up for over a second, and a run says at its end
+  how many blocks it dropped for whom.
+- **Expand is quick again.** A product that already knows this one's
+  capabilities says nothing after its stream header when this one dials
+  it, and the expand then waited six seconds for a first stanza before
+  going on. The peer's jid is now read from its header, so the request
+  follows as soon as the peer has spoken.
+- **A television can be expanded to.** It wakes its panel before it
+  answers, which takes ten seconds and more, and the expand gave up at
+  ten. It now waits twenty, as long as the app allows.
+- **A lost datagram is sent again.** A product that misses a datagram
+  of the stream asks the source for it again, on the stream port plus
+  one, and asks until it comes. Nobody listened there, so the product's
+  player ran a datagram short of the timestamps and started itself over
+  every few seconds: a small gap in the sound each time. The last six
+  seconds of every stream are kept, and a request is answered with the
+  datagram as it went out.
+
 ### Added
 
+- **The source, on the product's page.** The page shows which of the
+  machine's sources plays, CD or Radio on a music system, and a tap on the
+  other switches the machine to it, the way the app's own pick does. The
+  choice is hidden while the product listens to another product.
 - **Speakers that play along by themselves.** On the product's page, under
   *Play on other products*, each product has a button that makes it play
   this product's sound now, and a tick, **Auto**, that makes it play along

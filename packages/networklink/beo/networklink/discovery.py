@@ -1,7 +1,8 @@
-"""mDNS: find the products (Browser) and be one (Advertiser).
+"""mDNS: find the products (Browser) and be one (Advertiser, AvahiAdvertiser).
 
-Avahi (D-Bus) is the preferred publisher on the Pi; that path stays in the
-application — this module is the zeroconf one that works everywhere.
+``advertiser()`` picks the publisher: the machine's Avahi daemon where one
+runs, since it writes the jid as the one name label every peer asks for, and
+zeroconf elsewhere.
 """
 from __future__ import annotations
 
@@ -181,17 +182,18 @@ class PeerDirectory:
             return [dict(d) for d in self._found.values() if d.get("ipAddress")]
 
 
-class Advertiser:
+class Announcement:
     """The four services a product has, with our own identity.
 
     A peer very likely decides what we ARE from _beoremote — that is where
     the type number, item number and productType live — and only then decides
     whether a _beocore entry is worth dialling. The _beocore instance name is
-    the jid, ONE DNS label (invariant 13). TTLs are a product's own: A/SRV
-    120, TXT/NSEC 4500 — zeroconf's defaults.
+    the jid, ONE DNS label (invariant 13): a peer asks for the SRV and TXT of
+    that one label, and a record whose name is split at the jid's dots does
+    not answer its question. TTLs are a product's own: A/SRV 120, TXT/NSEC
+    4500 — zeroconf's and avahi's defaults.
     """
 
-    MIN_ZEROCONF = (0, 148, 0)   # below this zeroconf writes NSEC of the MISSING types
     RETRIES = 6                  # retry when registration sees a conflict (our own leftovers)
 
     def __init__(self, ident: ProductIdentity, ip: str, *, caps_ver: str = CAPS_VER,
@@ -200,8 +202,6 @@ class Advertiser:
         # What a product sends in _beoremote is its hardware code (CA17, say);
         # the TypeName the app knows it by is another string.
         self.product_type = product_type or ident.product_type
-        self._zc = None
-        self._infos: list = []
 
     def records(self) -> list:
         """(type, instance, port, txt) for the four services, in order."""
@@ -225,6 +225,33 @@ class Advertiser:
         if not host.endswith("."):
             host += "."
         return host
+
+    def start(self):
+        raise NotImplementedError
+
+    def stop(self) -> None:
+        raise NotImplementedError
+
+
+class Advertiser(Announcement):
+    """The announcement through python-zeroconf.
+
+    zeroconf writes every name label by label, split at each dot, so the jid
+    goes out as eight labels. A peer whose responder keeps the instance name
+    as one label asks for that one label, gets a record under another name
+    and never resolves us: it lists us by name but cannot find our address
+    and never dials. Where Avahi runs, ``AvahiAdvertiser`` is the one to use;
+    this one serves a machine without it, and the peers that split names
+    the same way.
+    """
+
+    MIN_ZEROCONF = (0, 148, 0)   # below this zeroconf writes NSEC of the MISSING types
+
+    def __init__(self, ident: ProductIdentity, ip: str, *, caps_ver: str = CAPS_VER,
+                 product_type: Optional[str] = None):
+        super().__init__(ident, ip, caps_ver=caps_ver, product_type=product_type)
+        self._zc = None
+        self._infos: list = []
 
     def start(self):
         import zeroconf as _zc
@@ -299,6 +326,148 @@ class Advertiser:
             self._infos = []
 
 
+# Avahi's entry-group states and publish flags, as its D-Bus API numbers them.
+AVAHI_ESTABLISHED, AVAHI_COLLISION, AVAHI_FAILURE = 2, 3, 4
+AVAHI_IF_UNSPEC, AVAHI_PROTO_INET = -1, 0
+AVAHI_PUBLISH_NO_REVERSE = 16
+
+
+def service_type(full: str) -> str:
+    """``_beocore._tcp`` out of ``_beocore._tcp.local.``: Avahi takes the type
+    and the domain apart."""
+    full = full.rstrip(".")
+    return full[:-len(".local")] if full.endswith(".local") else full
+
+
+class _DbusEntryGroup:
+    """One Avahi entry group over the system bus: the records of one
+    announcement, committed together and withdrawn together."""
+
+    def __init__(self):
+        import dbus
+        self._dbus = dbus
+        bus = dbus.SystemBus()
+        server = dbus.Interface(bus.get_object("org.freedesktop.Avahi", "/"),
+                                "org.freedesktop.Avahi.Server")
+        self._group = dbus.Interface(bus.get_object("org.freedesktop.Avahi", server.EntryGroupNew()),
+                                     "org.freedesktop.Avahi.EntryGroup")
+
+    @staticmethod
+    def available() -> bool:
+        """Whether an Avahi daemon answers on the system bus."""
+        try:
+            import dbus
+            bus = dbus.SystemBus()
+            dbus.Interface(bus.get_object("org.freedesktop.Avahi", "/"),
+                           "org.freedesktop.Avahi.Server").GetVersionString()
+            return True
+        except Exception:                               # noqa: BLE001
+            return False
+
+    def add_service(self, instance: str, type_: str, host: str, port: int, txt: dict) -> None:
+        d = self._dbus
+        # Avahi writes an empty list as a TXT of one empty string, as a
+        # product does for the services that carry nothing.
+        entries = d.Array([d.ByteArray(("%s=%s" % (k, v)).encode()) for k, v in txt.items()],
+                          signature="ay")
+        self._group.AddService(d.Int32(AVAHI_IF_UNSPEC), d.Int32(AVAHI_PROTO_INET), d.UInt32(0),
+                               d.String(instance), d.String(service_type(type_)),
+                               d.String(""), d.String(host), d.UInt16(port), entries)
+
+    def add_address(self, host: str, ip: str) -> None:
+        d = self._dbus
+        # No reverse record: the daemon already publishes one for the
+        # machine's own name, and a second answer for the same address would
+        # collide with it.
+        self._group.AddAddress(d.Int32(AVAHI_IF_UNSPEC), d.Int32(AVAHI_PROTO_INET),
+                               d.UInt32(AVAHI_PUBLISH_NO_REVERSE), d.String(host), d.String(ip))
+
+    def commit(self) -> None:
+        self._group.Commit()
+
+    def state(self) -> int:
+        return int(self._group.GetState())
+
+    def reset(self) -> None:
+        self._group.Reset()
+
+    def free(self) -> None:
+        self._group.Free()
+
+
+class AvahiAdvertiser(Announcement):
+    """The announcement through the machine's Avahi daemon.
+
+    Avahi keeps an instance name as one label whatever it contains, so the
+    jid goes out as the peers expect it, and the daemon answers their
+    questions for as long as the group lives. The address record for our
+    host name goes in the same group: the daemon publishes addresses only
+    for its own name, and ours is the product's.
+    """
+
+    SETTLE = 8.0                 # seconds to wait for the daemon's verdict on the names
+
+    def __init__(self, ident: ProductIdentity, ip: str, *, caps_ver: str = CAPS_VER,
+                 product_type: Optional[str] = None, group_factory=_DbusEntryGroup):
+        super().__init__(ident, ip, caps_ver=caps_ver, product_type=product_type)
+        self._group_factory = group_factory
+        self._group = None
+
+    def _fill(self, group) -> None:
+        host = self.host_name().rstrip(".")
+        group.add_address(host, self.ip)
+        for typ, instance, port, txt in self.records():
+            group.add_service(instance, typ, host, port, txt)
+        group.commit()
+
+    def _settle(self, group) -> int:
+        deadline = time.monotonic() + self.SETTLE
+        while True:
+            state = group.state()
+            if state in (AVAHI_ESTABLISHED, AVAHI_COLLISION, AVAHI_FAILURE) or time.monotonic() > deadline:
+                return state
+            time.sleep(0.2)
+
+    def start(self):
+        group = self._group_factory()
+        self._group = group
+        # A collision right after our own restart is our own records, still
+        # in the others' caches. We wait them out, as a product does.
+        for attempt in range(self.RETRIES):
+            self._fill(group)
+            state = self._settle(group)
+            if state == AVAHI_ESTABLISHED:
+                log.info("mDNS: %d records advertised through Avahi for %s on %s",
+                         len(self.records()), self.ident.full_jid(), self.host_name())
+                return group
+            if state == AVAHI_COLLISION and attempt + 1 < self.RETRIES:
+                group.reset()
+                time.sleep(3)
+                continue
+            self.stop()
+            raise RuntimeError("Avahi did not establish the announcement (state %d)" % state)
+
+    def stop(self) -> None:
+        if self._group is not None:
+            try:
+                self._group.free()
+            except Exception:                           # noqa: BLE001
+                pass
+            self._group = None
+
+
+def advertiser(ident: ProductIdentity, ip: str, *, caps_ver: str = CAPS_VER,
+               product_type: Optional[str] = None,
+               avahi_available=_DbusEntryGroup.available) -> Announcement:
+    """The announcement for this machine: Avahi where a daemon answers, since
+    every peer resolves what it publishes; zeroconf otherwise."""
+    if avahi_available():
+        return AvahiAdvertiser(ident, ip, caps_ver=caps_ver, product_type=product_type)
+    log.warning("no Avahi daemon on the bus: announcing through zeroconf, which peers "
+                "that keep the jid as one name label cannot resolve")
+    return Advertiser(ident, ip, caps_ver=caps_ver, product_type=product_type)
+
+
 def own_ip(toward: str = "203.0.113.1") -> str:
     """Our address on the network, not 127.0.0.1. Nothing is sent; a connected
     UDP socket just reveals which address the kernel would use for that target."""
@@ -312,4 +481,5 @@ def own_ip(toward: str = "203.0.113.1") -> str:
         p.close()
 
 
-__all__ = ["Peer", "Browser", "Advertiser", "CAPS_VER", "own_ip"]
+__all__ = ["Peer", "Browser", "Announcement", "Advertiser", "AvahiAdvertiser",
+           "advertiser", "CAPS_VER", "own_ip"]

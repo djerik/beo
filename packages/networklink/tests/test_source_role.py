@@ -49,8 +49,8 @@ class FakeSession:
         self.replies = {}
         self.handlers = []
 
-    def on(self, h):
-        self.handlers.append(h)
+    def on(self, h, first=False):
+        self.handlers.insert(0, h) if first else self.handlers.append(h)
 
     def open(self):
         return self
@@ -310,3 +310,92 @@ def test_the_three_volume_questions_get_three_different_answers():
 
 def test_threads_are_not_required_for_handlers():
     assert isinstance(threading.Event(), threading.Event)
+
+
+def test_a_listener_that_dialled_us_is_adopted_and_settled_after_its_connect():
+    """A borrower opens the session itself and sends Connect first: no Attach,
+    no ConnectRequest; FPS before the reply, then the same settling as an expand."""
+    log = []
+    replies = {"50910": "<iq type='result'><FullStatus/></iq>",
+               "50911": "<GetVolume><volume>13</volume></GetVolume>",
+               "50912": "<GetVolumeMuted><muted>0</muted></GetVolumeMuted>",
+               "50913": "<range><minimum>0</minimum><maximum>90</maximum></range>"}
+    role, session = make_role(log, replies)
+    settled = threading.Event()
+    role.on_listener_joined = lambda p: settled.set()
+    lis = role.adopt(PEER, session, Audio(), SOURCES["beoradio"])
+    assert role.adopt(PEER, session, Audio(), SOURCES["beoradio"]) is lis
+    assert role.listeners() == [PEER] and len(session.handlers) == 1
+    assert role._handle(lis, connect_stanza()) is True
+    assert settled.wait(5), "the settling never ran"
+    kinds = [e[0] for e in log]
+    assert kinds.index("fps.start") < kinds.index("result")
+    assert not any(e[0] == "send" and "<Attach" in e[2] or "<ConnectRequest" in str(e) for e in log)
+    assert lis.joined and role.experience.source.key == "beoradio"
+    assert role.experience.listeners == [PEER.jid]
+
+
+def test_a_second_connect_for_another_source_switches_the_experience_and_restarts_one_stream():
+    log = []
+    replies = {"50910": "<iq type='result'><FullStatus/></iq>",
+               "50911": "<GetVolume><volume>13</volume></GetVolume>",
+               "50912": "<GetVolumeMuted><muted>0</muted></GetVolumeMuted>",
+               "50913": "<range><minimum>0</minimum><maximum>90</maximum></range>"}
+    role, session = make_role(log, replies)
+    switched = []
+    role.on_source_switched = switched.append
+    settled = threading.Event()
+    role.on_listener_joined = lambda p: settled.set()
+    lis = role.adopt(PEER, session, Audio(), SOURCES["beoradio"])
+    role._handle(lis, connect_stanza())
+    assert settled.wait(5)
+    log.clear()
+    other = Stanza(f"<iq id='171' type='set' from='{PEER.jid}'><Connect xmlns='beocore.player.1'>"
+                   "<sourceId>linein</sourceId><connectionInfo>FPS://Beoplay-M3-90000010.local"
+                   "</connectionInfo></Connect></iq>")
+    assert role._handle(lis, other) is True
+    kinds = [e[0] for e in log]
+    assert kinds.index("fps.stop") < kinds.index("fps.start") < kinds.index("result")
+    assert kinds.count("fps.start") == 1
+    assert role.experience.source.key == "linein" and role.experience.listeners == [PEER.jid]
+    assert [s.key for s in switched] == ["linein"]
+    assert kinds.index("result") < kinds.index("push")        # the opening follows the answer
+    log.clear()
+    unknown = Stanza(f"<iq id='172' type='set' from='{PEER.jid}'><Connect xmlns='beocore.player.1'>"
+                     "<sourceId>tape</sourceId><connectionInfo>FPS://x.local</connectionInfo></Connect></iq>")
+    assert role._handle(lis, unknown) is True
+    assert role.experience.source.key == "linein" and len(switched) == 1
+
+
+def test_a_key_sent_through_the_tunnel_reaches_the_owner_and_its_release_does_not():
+    import base64
+    log = []
+    role, session = make_role(log)
+    keys = []
+    role.on_key = keys.append
+    lis = role.adopt(PEER, session, Audio(), SOURCES["beoradio"])
+
+    def forward(iq_id, raw):
+        return Stanza(f"<iq id='{iq_id}' type='set' from='{PEER.jid}'><Forward xmlns='beocore.tunnel.1'>"
+                      f"<originator>1</originator><telegram><data>{base64.b64encode(raw).decode()}</data>"
+                      "<timestamp>0</timestamp></telegram></Forward></iq>")
+    stop = bytes([0, 5, 0, 0, 0x36] + [0] * 8)
+    release = bytes([0, 5, 0, 0, 0x7E] + [0] * 8)
+    assert role._handle(lis, forward("7", stop)) is True
+    assert role._handle(lis, forward("8", release)) is True
+    assert keys == [0x36]
+    assert [e for e in log if e[0] == "result"] == [("result", "7", "<Forward xmlns='beocore.tunnel.1'/>"),
+                                                     ("result", "8", "<Forward xmlns='beocore.tunnel.1'/>")]
+
+
+def test_a_peer_that_asks_what_plays_is_told_the_machines_source_while_nobody_listens():
+    from beo.networklink.sources import Experience
+    log = []
+    role, session = make_role(log)
+    lis = Listener(PEER, session, Audio())
+    ask = Stanza(f"<iq id='3' type='get' from='{PEER.jid}'><Experiences xmlns='beocore.player.1'/></iq>")
+    assert role._handle(lis, ask) and "<list></list>" in log[-1][2]
+    role.experience_provider = lambda: Experience(SOURCES["linein"], IDENT.full_jid())
+    assert role._handle(lis, ask) and "<identifier>linein</identifier>" in log[-1][2]
+    role.experience_provider = lambda: None
+    assert role._handle(lis, ask) and "<list></list>" in log[-1][2]

@@ -35,3 +35,26 @@ def test_estimate_offset_from_running_buffer_line_when_no_invalid_pts():
     off = fl.estimate_offset_ns()
     assert off is not None
     assert abs(off / 1e9 - 11_804_772.954) < 0.01
+
+
+def test_health_counts_holes_resyncs_and_the_lead_in_the_last_window():
+    from beo.networklink.nsdk import FpsdLog
+    text = "\n".join([
+        "20261018 23:20:10.160 [W] GST.audioresample<sink_audioresample>: encountered timestamp discontinuity of 7421 samples = 0:00:00.168276644  [x]",
+        "20261018 23:20:19.811 [W] GST.audioresample<sink_audioresample>: encountered timestamp discontinuity of 2126 samples = 0:00:00.048208617  [x]",
+        "20261018 23:21:13.926 [W] GST.balsasink: PLC: OFF, Skew weight limit reached: 4000.000000 ms. 71 buffers in a row have been skewed. Resync'ing.  Buffer PTS=1:2:3.4, Now=1:2:3.3  [x]",
+        "20261018 23:21:16.167 [I] GST.fpsl_sink: Sink dropout, remSrc=UNDEFINED(5), sinks=1, SinkMs{0}, TimeMs={0}  [x]",
+        "20261018 23:22:00.328 [I] GST.fpsreceiver: buf=5001, PTS=4916:43:24.986928318, now=4916:43:23.974090581, ptsToPlayMs=982/1012/1015, maxIdleMs=60, heapKb=1711  [x]",
+        "20261018 23:22:24.409 [I] GST.fpsreceiver: buf=6001, PTS=4916:43:49.068230640, now=4916:43:48.043977400, ptsToPlayMs=874/1006/1043, maxIdleMs=168, heapKb=1732  [x]",
+        "20261018 23:22:24.409 [I] GST.fpsreceiver: retrans asked=[4,4,4,7] dropped=0, dup=0, i={40,0,40,1,153,0}  [x]",
+    ])
+    h = FpsdLog.from_text(text).health(600)
+    assert (h["discontinuities"], h["holes_by_datagrams"]) == (2, {2: 1, 7: 1})
+    assert h["resyncs"] == 1 and h["dropouts"] == 1 and h["retransmissions_asked"] == 7
+    assert h["ptsToPlayMs"] == {"min": 874, "mean": 928, "max": 982} and h["reports"] == 2
+    assert FpsdLog.from_text(text).health(60)["discontinuities"] == 0
+    assert FpsdLog.from_text("").health() == {"lines": 0}
+    # a log that runs past midnight counts back across it
+    late = text + chr(10) + "20261019 00:03:16.739 [I] SomeComponent: idle  [x]"
+    assert FpsdLog.from_text(late).health(45 * 60)["resyncs"] == 1
+    assert FpsdLog.from_text(late).health(60)["resyncs"] == 0

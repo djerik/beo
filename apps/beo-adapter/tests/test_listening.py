@@ -288,3 +288,52 @@ def test_a_source_that_pauses_is_heard_as_silence(playback):
     b._notified("PROGRESS_INFORMATION", progress % "play")
     b.role.sink.write(FpsBlock(2, b"", 0, 0, b"\x01\x02\x03\x04", 0.0, "203.0.113.10"))
     assert [blk.pcm for blk in playback.made[0].written] == [bytes(4), b"\x01\x02\x03\x04"]
+
+
+class BorrowSession:
+    def __init__(self):
+        self.handlers, self.peer_jid, self.peer_ip = [], "2730.1200322.90000010@products.bang-olufsen.com", "203.0.113.9"
+
+    def on(self, h, first=False):
+        self.handlers.insert(0, h) if first else self.handlers.append(h)
+
+    def deliver(self, xml):
+        from beo.networklink.beocore import Stanza
+        st = Stanza(xml)
+        return [h(self, st) for h in self.handlers]
+
+
+class BorrowSide:
+    def __init__(self):
+        self.asked = []
+
+    def accept(self, session, stanza):
+        self.asked.append(stanza.tag("sourceId"))
+        return True
+
+
+def test_a_borrowers_connect_goes_to_the_source_side_and_a_connectrequest_does_not():
+    side = BorrowSide()
+    b = BeolinkIn(IDENT, Catalog(STANDARD_SOURCES), machine=None, source=side)
+    session = BorrowSession()
+    b._serve(session)
+    assert len(session.handlers) == 2
+    jid = session.peer_jid
+    session.deliver(f"<iq id='1' type='set' from='{jid}'><Connect xmlns='beocore.player.1'>"
+                    "<sourceId>CD</sourceId><connectionInfo>FPS://203.0.113.9</connectionInfo></Connect></iq>")
+    assert side.asked == ["CD"]
+    assert session.handlers[0](session, __import__("beo.networklink.beocore", fromlist=["Stanza"]).Stanza(
+        f"<iq id='2' type='set' from='{jid}'><ConnectRequest xmlns='beocore.player.1'>"
+        "<sourceId>CD</sourceId></ConnectRequest></iq>")) is False
+    assert side.asked == ["CD"]
+    plain = BeolinkIn(IDENT, Catalog(STANDARD_SOURCES), machine=None)
+    plain._serve(session := BorrowSession())
+    assert len(session.handlers) == 1
+
+
+def test_the_entry_offers_the_sources_the_product_can_play_to_a_listener():
+    from beo.networklink.sources import SOURCES
+    b = BeolinkIn(IDENT, Catalog([SOURCES["CD"], SOURCES["RADIO"]]), machine=None)
+    assert [s.key for s in b.offered] == ["CD", "RADIO"]
+    plain = BeolinkIn(IDENT, Catalog(STANDARD_SOURCES), machine=None)
+    assert [s.key for s in plain.offered] == ["linein", "beoradio"]

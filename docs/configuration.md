@@ -90,10 +90,15 @@ pauses, every output here plays silence instead.
 
 `BEO_ENROL=1` lets the product add itself to the configuration the products
 on the network share. A source plays only to products it finds there, so
-without an entry nothing will offer this product as a listener. It is a
-setting of its own because it changes a document every product holds: it
-adds this product's entry if there is none, and never edits or removes
-anything.
+without an entry nothing will offer this product as a listener. The entry
+also lists the machine's sources, CD and Radio on a music system, which is
+what the other products borrow: under *Link to other products* on a Beoplay
+M3, or with Join on any of them while the machine plays, a product plays the
+machine's source, switches it from CD to Radio and back, and pauses, plays
+and skips it with its own keys. It is a setting of its own because it changes
+a document every product holds: it adds this product's entry if there is
+none, sends the entry again when it no longer says what the product writes,
+and never removes anything.
 
 `BEO_PLAYBACK_DEVICE` is the sound card output that feeds the machine, and
 `BEO_CAPTURE_DEVICE` the input its sound is captured from. `hw:0,0` is the
@@ -127,7 +132,11 @@ the machine on and starts its discs.
 While the product listens to another, the page is about that one: it shows
 what plays there, its play, pause and skip keys go to it, and its volume
 slider sets that product's volume, since that is the room that plays. The
-discs are offered only while the product's own source is its discs.
+discs are offered only while the product's own source is its discs. Above
+them the machine's sources, CD and Radio on a music system, with the one
+that plays marked; a tap on the other switches the machine, the way the
+app's own pick does. The choice is hidden while the product listens to
+another product.
 
 The page has a block for each direction of the link: listening to another
 product, and playing on other products. The open block is the direction the

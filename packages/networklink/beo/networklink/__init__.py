@@ -16,8 +16,7 @@ from .beocore import IdCounter, Session, Stanza
 from .fps import (AudioFormat, FpsReceiver, FpsSender, MonotonicClock, OffsetPtpClock,
                   build_header, build_marker, FORMAT_44100, RATE_HZ)
 from .audio import AlsaCapture, Fanout, Silence, ToneSource
-from .discovery import Advertiser, Browser, Peer
-from .nsdk import FpsdLog, NsdkClient
+from .discovery import Advertiser, AvahiAdvertiser, Browser, Peer, advertiser
 from .roles import SourceRole
 
 __all__ = [
@@ -28,6 +27,6 @@ __all__ = [
     "AudioFormat", "FpsReceiver", "FpsSender", "MonotonicClock", "OffsetPtpClock",
     "build_header", "build_marker", "FORMAT_44100", "RATE_HZ",
     "AlsaCapture", "Fanout", "Silence", "ToneSource",
-    "Advertiser", "Browser", "Peer",
-    "FpsdLog", "NsdkClient", "SourceRole",
+    "Advertiser", "AvahiAdvertiser", "advertiser", "Browser", "Peer",
+    "SourceRole",
 ]

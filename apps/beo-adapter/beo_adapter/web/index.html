@@ -110,6 +110,11 @@ section.folded .body, section:not(.folded) .summary { display: none; }
   </div>
 </section>
 
+<section id="sources-section" hidden>
+  <h2 data-t="source">Source</h2>
+  <div class="discs" id="sources"></div>
+</section>
+
 <section id="discs-section" hidden>
   <h2 data-t="discs">Discs</h2>
   <div class="discs" id="discs"></div>
@@ -143,7 +148,7 @@ section.folded .body, section:not(.folded) .summary { display: none; }
 "use strict";
 const TEXT = {
   en: {
-    volume: "Volume", volumeOf: "Volume on %s", discs: "Discs", here: "Listen here", listen: "Play in this browser",
+    volume: "Volume", volumeOf: "Volume on %s", source: "Source", discs: "Discs", here: "Listen here", listen: "Play in this browser",
     stopListen: "Stop playing here", listenHint: "The sound arrives a few seconds after it plays.",
     join: "Listen to another product", noPeers: "No other products found yet.",
     joinBtn: "Listen", leave: "Leave", joining: "Joining…", failed: "Nothing to hear", standby: "Standby",
@@ -154,7 +159,7 @@ const TEXT = {
     notListening: "Not listening", playingOn: "Playing on %s", autoOn: "Auto: %s", nobody: "Nobody",
   },
   da: {
-    volume: "Lydstyrke", volumeOf: "Lydstyrke på %s", discs: "Diske", here: "Lyt her", listen: "Afspil i denne browser",
+    volume: "Lydstyrke", volumeOf: "Lydstyrke på %s", source: "Kilde", discs: "Diske", here: "Lyt her", listen: "Afspil i denne browser",
     stopListen: "Stop afspilning her", listenHint: "Lyden kommer et par sekunder efter, den spiller.",
     join: "Lyt med på et andet produkt", noPeers: "Ingen andre produkter fundet endnu.",
     joinBtn: "Lyt med", leave: "Forlad", joining: "Forbinder…", failed: "Intet at høre", standby: "Standby",
@@ -177,7 +182,7 @@ const s = { state: "idle", power: "on", meta: null, vol: null, peers: [], discs:
             // whenever the product comes on, and which block the owner opened
             // against the state.
             listeners: [], playOn: [], expanding: null, open: null, openFor: null,
-            playing: null, sourceState: "", sourceVol: null, progress: 0 };
+            playing: null, sourceState: "", sourceVol: null, progress: 0, sources: [] };
 
 function api(path, body) {
   const opts = body === undefined ? {} :
@@ -201,9 +206,9 @@ function on(type, data) {
     case "WebSocketEventPlaybackMetadata": s.meta = data; break;
     case "WebSocketEventPlaybackProgress": s.progress = data.progress || 0; break;
     case "WebSocketEventVolume": s.vol = data; break;
-    case "WebSocketEventPowerState": s.power = data.value; break;
+    case "WebSocketEventPowerState": s.power = data.value; sources(); break;
     case "WebSocketEventSourceChange":
-    case "WebSocketEventPlaybackSource": s.source = (data.type || {}).value || ""; break;
+    case "WebSocketEventPlaybackSource": s.source = (data.type || {}).value || ""; sources(); break;
     case "WebSocketEventBeolinkJoinResult":
       if (data.type === "join") {
         if (data.status === "joined" && s.joined !== data.jid) { s.joined = data.jid; s.changedAt = Date.now(); }
@@ -246,6 +251,19 @@ async function load() {
   peers();
   status();
   playOn();
+  sources();
+}
+
+// The machine's sources, and which plays. Picking one goes the way the app's
+// own pick goes, so the machine is told once, by the product.
+async function sources() {
+  const r = await fetch("sources").then(r => r.json()).catch(() => null);
+  if (!r) return;
+  s.sources = r.items || [];
+  render();
+}
+function pickSource(id) {
+  api("playback/sources/active/" + encodeURIComponent(id), {}).then(() => setTimeout(sources, 800));
 }
 
 // Whom the product listens to, and how a join went: the app is told only of
@@ -336,6 +354,17 @@ function render() {
   }
   const muted = vol && vol.muted;
   $("mute").classList.toggle("active", !!muted);
+
+  // The sources are a choice only while the product plays its own: while it
+  // listens to another, the source is that one's.
+  $("sources-section").hidden = !s.sources.length || !!s.joined;
+  $("sources").replaceChildren(...s.sources.map(src => {
+    const b = document.createElement("button");
+    b.textContent = src.name;
+    b.classList.toggle("active", !!src.active);
+    b.onclick = () => pickSource(src.id);
+    return b;
+  }));
 
   const uris = Object.keys(s.discs).sort((a, b) =>
     a.localeCompare(b, undefined, { numeric: true }));

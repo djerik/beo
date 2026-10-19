@@ -77,6 +77,11 @@ What it does, in order:
    one exception is zeroconf: older than 0.148 it announces the product so
    that other products read it as unreachable, so where apt has nothing newer
    a private copy goes into `/opt/beo/python`, which only the service uses.
+   The announcement to other products itself goes through the Pi's Avahi
+   daemon, over D-Bus (`python3-dbus`): Avahi writes the product's jid as
+   the single name label the other products ask for, where zeroconf splits
+   it at its dots and they never find the product's address. zeroconf
+   remains the fallback on a machine without Avahi.
 3. Parses every source file under the Python that will run it, so a syntax
    error from a newer dialect is caught here and not at the first restart.
 4. Looks for a USB serial port, and if it finds one, installs the udev rule

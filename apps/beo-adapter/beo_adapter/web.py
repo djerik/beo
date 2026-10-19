@@ -9,6 +9,9 @@
                    POST play | pause | skip | prev to the product this one
                    listens to, which is where those keys mean something then,
                    and volume, {"level": n} or {"muted": b}, to set its volume.
+    /web/sources   GET the machine's sources, {"items": [{id, name, active}]},
+                   which of them plays, and the ids the page selects one by
+                   through api/v1, as the app does.
     /web/play-on   GET the products that play along when this one is switched
                    on, {"jids": [...]}, and POST the same shape to choose them.
     /web/stream    what the product plays, encoded once for every browser
@@ -495,6 +498,10 @@ class WebStream:
             from beo.mozart import facade
             return _send(request, 200, "application/json",
                          json.dumps({"jids": facade.play_on()}).encode())
+        if name == "sources":
+            from beo.mozart import facade
+            return _send(request, 200, "application/json",
+                         json.dumps({"items": facade.source_choices()}).encode())
         return _serve_file(request, name)
 
     def _serve_stream(self, request) -> None:

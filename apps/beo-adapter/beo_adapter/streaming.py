@@ -25,7 +25,7 @@ from beo.networklink.audio import AlsaCapture, Fanout, ToneSource
 from beo.networklink.discovery import Peer
 from beo.networklink.fps import AudioFormat, OffsetPtpClock, MonotonicClock, RATE_HZ
 from beo.product.identity import ProductIdentity
-from beo.networklink.sources import (Catalog, NowPlaying, SOURCES, STANDARD_SOURCES,
+from beo.networklink.sources import (Catalog, Experience, NowPlaying, SOURCES, STANDARD_SOURCES,
                                      SourceDescriptor, Volume)
 from beo.networklink.roles.source import SourceRole
 
@@ -103,11 +103,16 @@ class BeolinkOut:
         self.capture = None if tone else Fanout(AlsaCapture(device, self.fmt))
         self.role = SourceRole(self.ident, Catalog(self.sources), clock or make_clock(),
                                volume_provider=lambda: Volume(),
-                               on_listener_joined=lambda p: log.warning("%s plays %s now", p.name or p.jid,
-                                                                        self.name),
-                               on_listener_left=lambda p: log.info("%s left", p.name or p.jid))
+                               on_listener_joined=self._joined,
+                               on_listener_left=self._left,
+                               experience_provider=self._playing_now,
+                               on_source_switched=lambda src: self._bring_machine(src.key),
+                               on_key=facade.listener_key)
         self._lock = threading.Lock()
         self._pending: Dict[str, threading.Thread] = {}
+        # Whether the machine was switched on for a borrower, and so is ours
+        # to switch off when the last listener has gone.
+        self._machine_is_ours = False
         # What the listeners are told is playing. Without this the
         # listeners get an empty now-playing item.
         self.role.now_playing = self._now_playing()
@@ -195,6 +200,78 @@ class BeolinkOut:
             self._pending[listener_jid] = t
         t.start()
         return True
+
+    def accept(self, session, stanza) -> bool:
+        """A product that has borrowed one of our sources opened this session
+        itself and asks for the source with its own Connect. Answer it as a
+        source does, with the stream first, and bring the machine to the
+        source beside it. False when the source is not one of ours, so that
+        the question goes on to whoever else serves the session."""
+        key = stanza.tag("sourceId") or ""
+        source = next((s for s in self.playable if s.key == key), None)
+        if source is None:
+            return False
+        jid = stanza.from_jid or session.peer_jid or ""
+        known = self._peer(jid) or {}
+        peer = Peer(jid=jid, ip=session.peer_ip, name=known.get("friendlyName", ""),
+                    product_type=known.get("productType", ""))
+        audio = ToneSource(self.fmt, 440.0, 0.2) if self.tone else self.capture.subscribe(jid)
+        # The source under its own name: the borrower lists it beside our
+        # product's name, as its own source list does.
+        lis = self.role.adopt(peer, session, audio, source)
+        answered = self.role._handle(lis, stanza)
+        # The machine is asked after the stream has somewhere to go: it takes
+        # seconds to come round, and the listener is waiting for its answer.
+        self._bring_machine(source.key)
+        return answered
+
+    def _bring_machine(self, key: str) -> None:
+        """Bring the machine to this source, beside the caller, and remember
+        when it was the machine's switching on."""
+        from beo.mozart import facade
+
+        def bring():
+            if facade.ml_select_source(key):
+                with self._lock:
+                    self._machine_is_ours = True
+
+        threading.Thread(target=bring, daemon=True, name="borrow-machine-" + key).start()
+
+    def _playing_now(self) -> Optional[Experience]:
+        """What the machine plays while nobody listens, for a product that
+        asks what there is to join; None when it plays nothing."""
+        from beo.mozart import facade
+        if not facade.source_is_active() or facade._active["state"] != "started":
+            return None
+        return Experience(self.source(), self.ident.full_jid(), now_playing=self._now_playing())
+
+    def _joined(self, peer: Peer) -> None:
+        log.warning("%s plays %s now", peer.name or peer.jid, self.name)
+        # An expand of the app's own is reported from its thread; a listener
+        # that came by itself is told of here, so the app draws it too.
+        with self._lock:
+            expanding = peer.jid in self._pending
+        if not expanding:
+            from beo.mozart import facade
+            facade.listener_joined(peer.jid)
+
+    def _left(self, peer: Peer) -> None:
+        log.info("%s left", peer.name or peer.jid)
+        if self.capture:
+            self.capture.unsubscribe(peer.jid)
+        from beo.mozart import facade
+        facade.listener_left(peer.jid)
+        # A machine switched on for a borrower is switched off again when the
+        # last listener has gone, as a machine on a bus is when its link room
+        # goes to standby. One switched on by the app or at the machine stays.
+        with self._lock:
+            switch_off = self._machine_is_ours and not self.role.listeners()
+            if switch_off:
+                self._machine_is_ours = False
+        if switch_off:
+            from beo.mozart import facade
+            log.warning("the last borrower has gone; the machine is switched off")
+            facade.go_standby()
 
     def remove(self, listener_jid: str) -> bool:
         peer_d = self._peer(listener_jid)

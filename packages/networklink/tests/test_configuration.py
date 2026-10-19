@@ -9,7 +9,7 @@ KEY = "2730%2E1200322%2E90000001@products%2Ebang-olufsen%2Ecom"
 
 
 def entry(**kw):
-    return configuration.device_entry(IDENT, [SOURCES["CD"].named("Reference & Source")], **kw)
+    return configuration.device_entry(IDENT, [SOURCES["CD"]], **kw)
 
 
 def test_the_entry_is_named_by_the_jid_with_its_dots_written_out():
@@ -28,7 +28,7 @@ def test_the_one_source_is_a_cd_under_the_slot_a_listener_knows():
             '<item name="Profile#1"><item name="^emptyValue"><data>true</data></item></item>'
             '<item name="Linkable#1"><data>true</data></item>') in e
     assert ('<item name="UniqueSourceId#1"><item name="Source#1"><data>CD</data></item>'
-            '<item name="Jid#1"><data>%s</data></item></item>' % pinned.OUR_JID) in e
+            '<item name="Jid#1"><data>%s</data></item></item>' % KEY) in e
     assert '<item name="Index#1"><data>0</data></item>' in e
 
 
@@ -112,3 +112,43 @@ def test_nothing_is_sent_without_a_leader_or_without_having_read_the_document(mo
     assert ensure(silent, monkeypatch, who=None) == configuration.NO_LEADER and len(silent.asked) == 1
     refusing = Leader('<config></config>', insert_reply="<iq type='error'/>")
     assert ensure(refusing, monkeypatch) == configuration.REFUSED
+
+
+def old_shape():
+    """Our entry as an earlier version wrote it: the sources' jid in literal dots."""
+    return entry().replace('<item name="Jid#1"><data>%s</data>' % KEY,
+                           '<item name="Jid#1"><data>%s</data>' % pinned.OUR_JID)
+
+
+def stamped(entry_xml):
+    """As the leader stores it: a revision under every leaf."""
+    return entry_xml.replace("</data>", '</data><item name="_revision"><data>3640</data></item>')
+
+
+def test_a_stored_entry_differs_only_when_it_says_something_else():
+    ours = entry()
+    same = "<config>%s</config><deleted></deleted>" % configuration.item("Devices#1", stamped(ours))
+    assert not configuration.entry_differs(same, pinned.OUR_JID, ours)
+    dots = "<config>%s</config><deleted></deleted>" % configuration.item("Devices#1", stamped(old_shape()))
+    assert configuration.entry_differs(dots, pinned.OUR_JID, ours)
+    renamed = configuration.device_entry(IDENT, [SOURCES["CD"].named("Reference & Source")])
+    doc = "<config>%s</config><deleted></deleted>" % configuration.item("Devices#1", stamped(renamed))
+    assert configuration.entry_differs(doc, pinned.OUR_JID, ours)
+    other = ProductIdentity.from_jid(pinned.PEER_JID, "Other", "00:00:5e:00:53:02")
+    other_old = configuration.device_entry(other, [SOURCES["CD"]]).replace(
+        '<data>%s</data>' % key_of(pinned.PEER_JID), '<data>%s</data>' % pinned.PEER_JID)
+    doc = "<config>%s</config><deleted></deleted>" % configuration.item("Devices#1", other_old + stamped(ours))
+    assert not configuration.entry_differs(doc, pinned.OUR_JID, ours)
+    assert configuration.own_entry(doc, pinned.OUR_JID).startswith('<item name="%s">' % KEY)
+    assert configuration.leaves(stamped(ours)) == configuration.leaves(ours)
+
+
+def key_of(jid):
+    return configuration.key(jid)
+
+
+def test_an_entry_that_no_longer_says_what_we_write_is_sent_again(monkeypatch):
+    stale = Leader("<config>%s</config><deleted></deleted>" % configuration.item("Devices#1", old_shape()))
+    assert ensure(stale, monkeypatch) == configuration.REWRITTEN
+    assert [a[:7] for a in stale.asked] == ["<_notif", "<Insert"]
+    assert stale.asked[1] == configuration.insert_request(entry())

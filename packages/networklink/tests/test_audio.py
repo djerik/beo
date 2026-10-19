@@ -146,3 +146,24 @@ def test_timeline_pts_identical_for_two_listeners():
     got_b = {n: clock.at_ns(b.origin_ns + n * interval) for n, _ in [b.read_indexed()]}
     assert 3 in got_a and 3 in got_b and got_a[3] == got_b[3]
     assert got_a[3] - got_a[2] == interval
+
+
+def test_a_fanout_counts_the_blocks_it_drops_for_a_slow_subscriber_and_says_so(caplog):
+    import logging
+    from beo.networklink.audio import Fanout, FORMAT_44100
+
+    class Blocks:
+        format = FORMAT_44100
+        def __init__(self): self.n = 0
+        def read_block(self):
+            self.n += 1
+            return b"\x00" * FORMAT_44100.payload_bytes if self.n <= 10 else None
+    fan = Fanout(Blocks(), depth=4, paced=False)
+    sub = fan.subscribe("slow")
+    import time
+    time.sleep(0.5)
+    assert fan.dropped.get("slow", 0) >= 6
+    assert sub.read_indexed(timeout=0.1)[0] >= 6          # the oldest went first
+    with caplog.at_level(logging.WARNING, logger="beo.networklink.audio"):
+        fan.unsubscribe("slow")
+    assert any("dropped for slow" in r.message for r in caplog.records)

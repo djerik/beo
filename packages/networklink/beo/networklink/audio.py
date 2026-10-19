@@ -97,12 +97,16 @@ class AlsaCapture:
     natively, so nothing is resampled.
     """
 
-    def __init__(self, device: str = "hw:0,0", fmt: AudioFormat = FORMAT_44100, depth: int = 8):
+    def __init__(self, device: str = "hw:0,0", fmt: AudioFormat = FORMAT_44100, depth: int = 64):
         self.device = device
         self.format = fmt
+        # Deep enough to ride out a reader held up for more than a second:
+        # a block dropped here is a hole in every stream, and the depth costs
+        # nothing while the reader keeps up.
         self.q: "queue.Queue[bytes]" = queue.Queue(maxsize=depth)
         self.proc = None
         self.blocks = 0
+        self.dropped = 0
         self._stop = threading.Event()
 
     def start(self) -> "AlsaCapture":
@@ -141,6 +145,7 @@ class AlsaCapture:
                 # would make the stream drift further behind for every hiccup.
                 try:
                     self.q.get_nowait()
+                    self.dropped += 1
                     self.q.put_nowait(buf)
                 except queue.Empty:
                     pass
@@ -172,7 +177,8 @@ class AlsaCapture:
             except subprocess.TimeoutExpired:
                 log.error("ALSA: the recorder could not be killed, pid %d "
                           "still holds the sound card", proc.pid)
-        log.info("ALSA: capture stopped")
+        # The drops are holes in every stream that was fed from here.
+        log.info("ALSA: capture stopped after %d blocks, %d dropped", self.blocks, self.dropped)
 
 
 class _Subscriber:
@@ -218,11 +224,12 @@ class Fanout:
     ``format.interval_s``.
     """
 
-    def __init__(self, source, *, depth: int = 8, paced: bool = True):
+    def __init__(self, source, *, depth: int = 64, paced: bool = True):
         self.source = source
         self.format: AudioFormat = source.format
         self.depth = depth
         self.paced = paced
+        self.dropped: Dict[str, int] = {}
         self.subs: Dict[str, "queue.Queue"] = {}
         self.blocks = 0
         # The capture timeline: block i was captured at origin_ns + i * interval_ns
@@ -263,13 +270,16 @@ class Fanout:
                 self.origin_ns = time.monotonic_ns()
             item = (self.blocks, buf)
             self.blocks += 1
-            qs = list(self.subs.values())
-        for q in qs:
+            qs = list(self.subs.items())
+        for key, q in qs:
             try:
                 q.put_nowait(item)
             except queue.Full:
+                # The oldest goes, and the stream to this subscriber has a hole
+                # the width of it: counted, so a run can say how many.
                 try:
                     q.get_nowait()
+                    self.dropped[key] = self.dropped.get(key, 0) + 1
                     q.put_nowait(item)
                 except queue.Empty:
                     pass
@@ -297,12 +307,16 @@ class Fanout:
     def unsubscribe(self, key: str) -> None:
         with self._lock:
             self.subs.pop(key, None)
+            dropped = self.dropped.pop(key, 0)
             thread = self._thread if not self.subs else None
             if thread is not None:
                 self._stop.set()        # under the lock: nothing is distributed after this
                 self._thread = None
                 self.origin_ns = None
                 self.blocks = 0
+        if dropped:
+            log.warning("Fanout: %d block(s) were dropped for %s: holes in its stream, one "
+                        "datagram wide each", dropped, key)
         if thread is not None:
             stop = getattr(self.source, "stop", None)
             if callable(stop):
