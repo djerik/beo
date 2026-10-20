@@ -70,6 +70,12 @@ the application share one version.
   every few seconds: a small gap in the sound each time. The last six
   seconds of every stream are kept, and a request is answered with the
   datagram as it went out.
+- **The digit keys on a product that plays this one's sound are the
+  machine's own**: a digit alone chooses the disc, and GO followed by one
+  or two digits a track on it, as on the machine's own remote.
+- **`beo-listening`**, installed on the Pi: a speaker's own log as one
+  command, the counts of its last minutes of listening, or with
+  `--find` the lines that say what it did with a join or a link.
 
 ### Added
 

@@ -328,3 +328,43 @@ def test_a_listener_that_comes_and_goes_by_itself_is_drawn_and_undrawn(monkeypat
     assert events[-1] == ("WebSocketEventNotification", {"value": "beolinkListeners", "code": ""})
     facade.listener_left("nobody@products.bang-olufsen.com")
     assert len(events) == 2
+
+
+def test_a_listeners_digit_chooses_the_disc_and_the_rest_do_nothing(monkeypatch):
+    monkeypatch.setattr(facade, "_active", dict(facade._active, source=None, state="stopped", cd=1, track=4))
+    monkeypatch.setattr(facade, "_ml", None)
+    events = []
+    monkeypatch.setattr(facade.notifier, "send", lambda name, data: events.append((name, data)))
+    monkeypatch.setattr(facade, "_beolink_out", None)
+    facade.listener_key(0x03)
+    assert (facade._active["cd"], facade._active["track"], facade._active["state"]) == (3, 1, "started")
+    assert events[0][0] == "WebSocketEventSourceChange" and events[0][1]["name"] == "CD 3"
+    before = dict(facade._active)
+    facade.listener_key(0x09)
+    facade.listener_key(0x00)
+    assert facade._active == before
+
+
+def test_go_then_digits_from_a_listener_is_a_track_and_a_digit_alone_a_disc(monkeypatch):
+    monkeypatch.setattr(facade, "_active", dict(facade._active, source=None, state="started", cd=2, track=1))
+    monkeypatch.setattr(facade, "_beolink_out", None)
+    monkeypatch.setattr(facade.notifier, "send", lambda name, data: None)
+    monkeypatch.setattr(facade, "TRACK_DIGITS_S", 0.3)
+    gone = []
+    monkeypatch.setattr(facade, "_ml", type("Ml", (), {"goto_track": staticmethod(gone.append),
+                                                      "select_disc": staticmethod(lambda n: None)})())
+    monkeypatch.setattr(facade, "ml_select_disc", lambda n: None)
+    facade.listener_key(0x20)
+    facade.listener_key(0x01)
+    facade.listener_key(0x02)
+    assert gone == [12]                                 # two digits make the track at once
+    facade.listener_key(0x20)
+    facade.listener_key(0x07)
+    assert gone == [12]
+    time.sleep(0.5)
+    assert gone == [12, 7]                              # one digit, then the pause
+    chosen = []
+    monkeypatch.setattr(facade, "set_pending_cd", chosen.append)
+    time.sleep(0.4)
+    facade.listener_key(0x03)                           # long after GO: a disc again
+    assert chosen == [3] and gone == [12, 7]

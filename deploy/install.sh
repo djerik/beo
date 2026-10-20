@@ -541,6 +541,11 @@ VERSION="${BEO_VERSION:-$(git -C "$SRC" describe --tags --always --dirty 2>/dev/
 echo "$VERSION" | sudo tee "$CONF_DIR/version" >/dev/null
 echo "   version $VERSION"
 sed "s#@SRC@#$SRC#g" "$SRC/deploy/beo-adapter.service" | sudo tee "$UNIT" >/dev/null
+# A listener's own log as one command, with the library on the path the
+# service uses, so that a plain python3 finds it.
+printf '#!/bin/sh\nexec env PYTHONPATH=/opt/beo/python:%s/packages/product:%s/packages/networklink python3 -m beo.networklink.nsdk "$@"\n' "$SRC" "$SRC" \
+  | sudo tee /usr/local/bin/beo-listening >/dev/null
+sudo chmod +x /usr/local/bin/beo-listening
 sudo systemctl daemon-reload
 
 # The product answers on these, and anything else holding them has to go. Say

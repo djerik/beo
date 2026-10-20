@@ -201,15 +201,23 @@ has played the product for a few minutes and stopped:
 
 A block dropped between the sound card and a stream is a hole in that stream,
 and the lines say how many and for whom. The cadence lines say how evenly the
-datagrams left. Then, from any machine on the network, with the speaker's
-address:
+datagrams left. Then, on the Pi, with the speaker's address:
 
-    python -m beo.networklink.nsdk 203.0.113.50
+    beo-listening 203.0.113.50
 
 That fetches the speaker's own log and counts the holes it had to bridge, how
 often it started its player over, which is what a stutter is, and how far
 ahead the stream arrived. Around a thousand milliseconds is what a product's
 own stream gives it. Send both outputs along when reporting a stutter.
+
+The same command reads the rest of the speaker's log, which is where a join
+or a link that went nowhere explains itself:
+
+    beo-listening 203.0.113.50 --find 'provider|Attach|ConnectRequest|Experiences|config'
+
+The installer puts the command in place; from a checkout elsewhere it is
+`python -m beo.networklink.nsdk`, with `packages/product` and
+`packages/networklink` on `PYTHONPATH`.
 
 ## Later
 

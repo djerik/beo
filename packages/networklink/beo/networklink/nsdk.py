@@ -136,6 +136,21 @@ class FpsdLog:
                 out += f.read().decode("utf-8", "replace").splitlines()
         return out
 
+    @staticmethod
+    def nsdk_lines(tgz: bytes) -> List[str]:
+        """The product's nSDK log, oldest file first: what it did on the
+        product-to-product plane, where the fpsd log has only the sound."""
+        t = tarfile.open(fileobj=io.BytesIO(tgz), mode="r:*")
+        out: List[str] = []
+        for name in ("tmp/log-nSDK.0", "tmp/log-nSDK"):
+            try:
+                f = t.extractfile(name)
+            except KeyError:
+                continue
+            if f:
+                out += f.read().decode("utf-8", "replace").splitlines()
+        return out
+
     @classmethod
     def parse(cls, tar_bytes: bytes) -> "FpsdLog":
         return cls(cls.fpsd_lines(tar_bytes))
@@ -267,11 +282,21 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--minutes", type=float, default=10.0,
                     help="how far back from the log's last line to count (default 10)")
     ap.add_argument("--save", help="also write the fetched log package here")
+    ap.add_argument("--find", metavar="REGEX",
+                    help="instead of the counts, print the lines of the product's own log that "
+                         "match, the last 200 of them: what it did with a join, a link or a source")
     a = ap.parse_args(argv)
     tgz = NsdkClient(a.ip).fetch_logs()
     if a.save:
         with open(a.save, "wb") as f:
             f.write(tgz)
+    if a.find:
+        pattern = re.compile(a.find, re.I)
+        hits = [l for l in FpsdLog.nsdk_lines(tgz) if pattern.search(l)]
+        for l in hits[-200:]:
+            print(re.sub(r"\s+\[/__w.*$", "", l)[:300])
+        print("-- %d matching line(s), %d shown" % (len(hits), min(len(hits), 200)))
+        return 0
     h = FpsdLog.parse(tgz).health(a.minutes * 60)
     print(json.dumps(h, indent=2))
     return 0

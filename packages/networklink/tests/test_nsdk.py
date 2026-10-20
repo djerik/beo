@@ -58,3 +58,19 @@ def test_health_counts_holes_resyncs_and_the_lead_in_the_last_window():
     late = text + chr(10) + "20261019 00:03:16.739 [I] SomeComponent: idle  [x]"
     assert FpsdLog.from_text(late).health(45 * 60)["resyncs"] == 1
     assert FpsdLog.from_text(late).health(60)["resyncs"] == 0
+
+
+def test_the_products_own_log_is_read_from_the_package_oldest_first():
+    import io
+    import tarfile
+    from beo.networklink.nsdk import FpsdLog
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as t:
+        for name, text in (("tmp/log-nSDK", "20261019 21:51:41 INFO later\n"),
+                           ("tmp/log-nSDK.0", "20261018 09:00:00 INFO earlier\n"),
+                           ("tmp/log-fpsd", "nothing\n")):
+            data = text.encode()
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            t.addfile(info, io.BytesIO(data))
+    assert FpsdLog.nsdk_lines(buf.getvalue()) == ["20261018 09:00:00 INFO earlier", "20261019 21:51:41 INFO later"]

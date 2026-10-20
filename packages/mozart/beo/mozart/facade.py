@@ -571,17 +571,116 @@ def _listeners_follow_state():
 # The transport keys a listener sends through the tunnel, by their code.
 # Beo4 has no pause key: on a CD player STOP is what pauses it.
 LISTENER_KEYS = {0x35: "play", 0x36: "pause", 0x1E: "skip", 0x1F: "prev"}
+LISTENER_GO = 0x20
+# How long the digits of a track number may be apart, after GO. A machine
+# takes them at a remote's pace, and a second digit makes a two-digit track.
+TRACK_DIGITS_S = 2.0
+
+_track_entry = {"digits": "", "at": 0.0, "timer": None}
+_track_entry_lock = threading.Lock()
 
 
 def listener_key(code):
     """A key pressed on a product that plays our sound, handed to us as the
-    machine's own keys are. It goes the way the app's command goes."""
+    machine's own keys are. It goes the way the app's command goes.
+
+    The digits are the machine's own: a digit alone is a disc, and GO
+    followed by one or two digits is a track on it.
+    """
+    if code == LISTENER_GO:
+        with _track_entry_lock:
+            _track_entry["digits"], _track_entry["at"] = "", time.monotonic()
+        log.info("     -> GO, from a listener: the digits that follow are a track")
+        return
+    if 0 <= code <= 9 and _track_entry_digit(code):
+        return
     command = LISTENER_KEYS.get(code)
     if command is None:
+        # The digit keys name a disc, as they do on the machine's own remote.
+        if 1 <= code <= CD_COUNT:
+            log.info("     -> CD %d, from a listener", code)
+            choose_disc(code)
+            return
         log.info("     -> key 0x%02x from a listener is not a transport key; nothing done", code)
         return
     log.info("     -> %s, from a listener", command)
     playback_command(command)
+
+
+def _track_entry_digit(digit):
+    """A digit while a track number is being entered: True when it was taken
+    as one. The number goes to the machine after the second digit, or when
+    no digit follows within the pause a remote's own digits allow."""
+    with _track_entry_lock:
+        if time.monotonic() - _track_entry["at"] > TRACK_DIGITS_S:
+            return False
+        _track_entry["digits"] += str(digit)
+        _track_entry["at"] = time.monotonic()
+        timer = _track_entry["timer"]
+        if timer is not None:
+            timer.cancel()
+        if len(_track_entry["digits"]) >= 2:
+            _track_entry["timer"] = None
+            number = _track_entry["digits"]
+        else:
+            _track_entry["timer"] = threading.Timer(TRACK_DIGITS_S, _track_entry_done)
+            _track_entry["timer"].daemon = True
+            _track_entry["timer"].start()
+            return True
+    _go_to_track(int(number))
+    return True
+
+
+def _track_entry_done():
+    with _track_entry_lock:
+        number, _track_entry["digits"], _track_entry["timer"] = _track_entry["digits"], "", None
+        _track_entry["at"] = 0.0
+    if number:
+        _go_to_track(int(number))
+
+
+def _go_to_track(n):
+    with _track_entry_lock:
+        _track_entry["digits"], _track_entry["at"] = "", 0.0
+    if n < 1:
+        log.info("     -> track 0 from a listener: nothing done")
+        return
+    log.info("     -> track %d, from a listener", n)
+    if _ml is None:
+        _active["track"] = n
+        _active["progress"] = 0
+        _active["state"] = "started"
+        announce_track()
+        return
+    try:
+        _ml.goto_track(n)
+    except Exception as e:                              # noqa: BLE001
+        log.warning("     -> ML: could not go to track %d (%s)", n, e)
+
+
+def choose_disc(wanted, uri=None):
+    """Make the machine play this disc, as the app's pick of it does; ``uri``
+    is the content uri the app named it by, when it did."""
+    # With a machine attached the disc is whatever it reports. Claiming it
+    # changed here reads as flicker when the status corrects it.
+    _active["state"] = "started"
+    _active["source"] = None
+    if _ml is not None:
+        set_pending_cd(wanted)
+        log.info("     -> CD %d chosen (the machine is on CD %d)", wanted, _active["cd"])
+        threading.Thread(target=ml_select_disc, args=(wanted,), daemon=True).start()
+    else:
+        # No machine attached: behave as before so the emulator is still
+        # useful on its own.
+        _active["cd"] = wanted
+        _active["track"] = 1
+        _active["progress"] = 0
+        log.info("     -> now playing CD %d, track 1 of %d", _active["cd"],
+                 track_count(_active["cd"]))
+    notifier.send("WebSocketEventSourceChange",
+                  mozart_source(uri or active_content_uri(), f"CD {_active['cd']}", "classicsAdapter"))
+    announce_track()
+    _listeners_follow_state()
 
 
 def playback_command(command):
@@ -1646,30 +1745,7 @@ class Handler(BaseHTTPRequestHandler):
         if not disc.isdigit() or not 1 <= int(disc) <= CD_COUNT:
             log.warning("     -> unknown content uri %r", uri)
             return self._send({}, 404)
-
-        # With a machine attached the disc is whatever it reports. Claiming it
-        # changed here reads as flicker when the status corrects it.
-        wanted = int(disc)
-        _active["state"] = "started"
-        _active["source"] = None
-        if _ml is not None:
-            set_pending_cd(wanted)
-            log.info("     -> the app chose CD %d (the 9000 is on CD %d)",
-                     wanted, _active["cd"])
-            threading.Thread(target=ml_select_disc, args=(wanted,),
-                             daemon=True).start()
-        else:
-            # No machine attached: behave as before so the emulator is still
-            # useful on its own.
-            _active["cd"] = wanted
-            _active["track"] = 1
-            _active["progress"] = 0
-            log.info("     -> now playing CD %d, track 1 of %d", _active["cd"],
-                     track_count(_active["cd"]))
-
-        notifier.send("WebSocketEventSourceChange",
-                      mozart_source(uri, f"CD {_active['cd']}", "classicsAdapter"))
-        self._announce_track()
+        choose_disc(int(disc), uri)
         return self._send({}, 200)
 
     def _activate(self, source_id):
