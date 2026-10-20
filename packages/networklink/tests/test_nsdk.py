@@ -74,3 +74,31 @@ def test_the_products_own_log_is_read_from_the_package_oldest_first():
             info.size = len(data)
             t.addfile(info, io.BytesIO(data))
     assert FpsdLog.nsdk_lines(buf.getvalue()) == ["20261018 09:00:00 INFO earlier", "20261019 21:51:41 INFO later"]
+
+
+def test_the_source_list_is_summarised_with_whose_each_source_is():
+    from beo.networklink.nsdk import summarise_sources
+    doc = {"sources": [
+        ["CD:2730.1200322.90000001@products.bang-olufsen.com",
+         {"friendlyName": "CD", "sourceType": {"type": "CD"}, "borrowed": True,
+          "product": {"jid": "2730.1200322.90000001@products.bang-olufsen.com", "friendlyName": "Reference Source"}}],
+        ["radio:x", {"friendlyName": "TuneIn", "sourceType": {"type": "TUNEIN"}, "borrowed": False,
+                     "product": {"jid": "x", "friendlyName": "Me"}}],
+    ]}
+    rows = summarise_sources(doc)
+    assert [(r["type"], r["name"], r["borrowed"], r["product"]) for r in rows] == [
+        ("CD", "CD", True, "Reference Source"), ("TUNEIN", "TuneIn", False, "Me")]
+
+
+def test_the_device_and_the_active_experience_are_summarised():
+    from beo.networklink.nsdk import summarise_active, summarise_device
+    dev = {"beoDevice": {"productId": {"productType": "CA17", "typeNumber": "2730", "itemNumber": "1200322",
+                                       "serialNumber": "90000001"},
+                         "productFriendlyName": {"productFriendlyName": "Reference Source"},
+                         "software": {"version": "6.7.1"}}}
+    assert summarise_device(dev) == {"name": "Reference Source", "productType": "CA17",
+                                     "jid": "2730.1200322.90000001@products.bang-olufsen.com", "software": "6.7.1"}
+    act = {"primaryExperience": {"source": {"id": "CD:x", "friendlyName": "CD"}, "state": "play",
+                                 "listenerList": {"listener": [{"jid": "a"}, {"jid": "b"}]}}}
+    assert summarise_active(act) == {"source": "CD:x", "sourceName": "CD", "state": "play", "listeners": ["a", "b"]}
+    assert summarise_active({}) == {"source": None, "sourceName": None, "state": None, "listeners": []}

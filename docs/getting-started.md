@@ -215,6 +215,18 @@ or a link that went nowhere explains itself:
 
     beo-listening 203.0.113.50 --find 'provider|Attach|ConnectRequest|Experiences|config'
 
+A product of an older generation has no log to fetch and says so. Its
+source list still answers, and says whether it holds this product's sources,
+which is what a join or a link needs:
+
+    beo-listening 203.0.113.50 --sources
+
+Three more words on the same command: `--device` says what the product is
+and which software it runs, `--active` what it plays now and who listens,
+and `--join` makes it join what plays elsewhere, as its own Join key does,
+and says what it plays three seconds later. That is the join without a
+remote in hand, and it answers on the older products too.
+
 The installer puts the command in place; from a checkout elsewhere it is
 `python -m beo.networklink.nsdk`, with `packages/product` and
 `packages/networklink` on `PYTHONPATH`.

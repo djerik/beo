@@ -32,6 +32,7 @@ import logging
 import re
 import statistics
 import tarfile
+import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
@@ -82,6 +83,65 @@ class NsdkClient:
         name = self.set("systemManager:createLogFile", "activate",
                         {"type": "logCreate", "logCreate": {"type": "beoWeb"}})
         return self.stream(name)          # "/tmp/temp_data_logs.tgz"
+
+    def sources(self, timeout: float = 15) -> List[dict]:
+        """The product's source list from its BeoZone API on port 8080, which
+        the older products have too. Each: id, name, type, borrowed, and the
+        product the source belongs to."""
+        url = "http://%s:8080/BeoZone/Zone/Sources" % self.base[len("http://"):]
+        with urllib.request.urlopen(url, timeout=timeout) as r:
+            doc = json.loads(r.read().decode("utf-8", "replace"))
+        return summarise_sources(doc)
+
+
+    def _zone(self, path: str, timeout: float = 15, method: str = "GET") -> Any:
+        url = "http://%s:8080/%s" % (self.base[len("http://"):], path)
+        req = urllib.request.Request(url, method=method)
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            body = r.read().decode("utf-8", "replace")
+        return json.loads(body) if body.strip() else {}
+
+    def device(self) -> dict:
+        """Name, type numbers and software of the product, from BeoDevice."""
+        return summarise_device(self._zone("BeoDevice"))
+
+    def active(self) -> dict:
+        """What the product plays now and who listens, from ActiveSources."""
+        return summarise_active(self._zone("BeoZone/Zone/ActiveSources"))
+
+    def join(self) -> None:
+        """Make the product join what plays elsewhere, as its own Join key does."""
+        self._zone("BeoZone/Zone/Device/OneWayJoin", method="POST")
+
+
+def summarise_device(doc: dict) -> dict:
+    d = doc.get("beoDevice", {})
+    pid = d.get("productId", {})
+    return {"name": (d.get("productFriendlyName") or {}).get("productFriendlyName"),
+            "productType": pid.get("productType"),
+            "jid": "%s.%s.%s@products.bang-olufsen.com" % (pid.get("typeNumber"), pid.get("itemNumber"),
+                                                           pid.get("serialNumber")),
+            "software": (d.get("software") or {}).get("version")}
+
+
+def summarise_active(doc: dict) -> dict:
+    exp = doc.get("primaryExperience") or {}
+    src = exp.get("source") or {}
+    listeners = [l.get("jid") for l in ((exp.get("listenerList") or {}).get("listener") or [])]
+    return {"source": src.get("id"), "sourceName": src.get("friendlyName"),
+            "state": exp.get("state"), "listeners": listeners}
+
+
+def summarise_sources(doc: dict) -> List[dict]:
+    out = []
+    for item in doc.get("sources", []):
+        sid, s = item[0], item[1]
+        out.append({"id": sid, "name": s.get("friendlyName"),
+                    "type": (s.get("sourceType") or {}).get("type"),
+                    "borrowed": bool(s.get("borrowed")),
+                    "product": (s.get("product") or {}).get("friendlyName"),
+                    "jid": (s.get("product") or {}).get("jid")})
+    return out
 
 
 def _s(t: str) -> float:
@@ -285,8 +345,46 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--find", metavar="REGEX",
                     help="instead of the counts, print the lines of the product's own log that "
                          "match, the last 200 of them: what it did with a join, a link or a source")
+    ap.add_argument("--sources", action="store_true",
+                    help="instead, list the product's sources from its BeoZone API: the borrowed "
+                         "ones say whose they are. Older products answer this where they have no log API")
+    ap.add_argument("--device", action="store_true",
+                    help="instead, say what the product is: name, jid, software")
+    ap.add_argument("--active", action="store_true",
+                    help="instead, say what the product plays now and who listens to it")
+    ap.add_argument("--join", action="store_true",
+                    help="instead, make the product join what plays elsewhere, as its own Join key does, "
+                         "and say what it plays three seconds later")
     a = ap.parse_args(argv)
-    tgz = NsdkClient(a.ip).fetch_logs()
+    client = NsdkClient(a.ip)
+    if a.sources or a.device or a.active or a.join:
+        try:
+            if a.sources:
+                for r in client.sources():
+                    print("%-14s %-24s %-9s %s" % (r["type"] or "", r["name"] or "",
+                                                 "borrowed" if r["borrowed"] else "own", r["jid"] or ""))
+            if a.device:
+                print(json.dumps(client.device(), indent=2))
+            if a.join:
+                client.join()
+                import time as _time
+                _time.sleep(3.0)
+            if a.active or a.join:
+                print(json.dumps(client.active(), indent=2))
+        except (urllib.error.URLError, ValueError, OSError) as e:
+            print("%s does not answer on its BeoZone API (%s)" % (a.ip, e))
+            return 2
+        return 0
+    try:
+        tgz = client.fetch_logs()
+    except urllib.error.HTTPError as e:
+        print("%s has no log API (HTTP %d on %s): it is not a product of the generation that packs its "
+              "logs on request. Its source list may still answer: --sources. The Pi's own journal says "
+              "what was asked of it and what it answered." % (a.ip, e.code, e.url))
+        return 2
+    except (urllib.error.URLError, OSError) as e:
+        print("%s does not answer (%s)" % (a.ip, e))
+        return 2
     if a.save:
         with open(a.save, "wb") as f:
             f.write(tgz)

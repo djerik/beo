@@ -75,7 +75,10 @@ the application share one version.
   or two digits a track on it, as on the machine's own remote.
 - **`beo-listening`**, installed on the Pi: a speaker's own log as one
   command, the counts of its last minutes of listening, or with
-  `--find` the lines that say what it did with a join or a link.
+  `--find` the lines that say what it did with a join or a link, or with
+  `--sources` its source list, which the older products answer too;
+  `--device`, `--active` and `--join` ask the same API what the product
+  is, what it plays, and make it join what plays elsewhere.
 
 ### Added
 
