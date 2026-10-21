@@ -114,6 +114,26 @@ class NsdkClient:
         self._zone("BeoZone/Zone/Device/OneWayJoin", method="POST")
 
 
+    def peers(self) -> List[dict]:
+        """The products this one has found, as it lists them itself, and the
+        address it resolves each to: "unknown" is a product it cannot reach
+        on the product-to-product plane, whatever its list says."""
+        r = self.set("BeoNetworkLink:/beo/NetworkLink/discoveredProducts", "activate",
+                     {"type": "bool_", "bool_": True})
+        rows = []
+        for p in (r.get("networkLinkProducts") or {}).get("products", []) if isinstance(r, dict) else []:
+            jid = p.get("jid", "")
+            try:
+                a = self.set("BeoNetworkLink:/beo/NetworkLink/resolvePeerAddress", "activate",
+                             {"type": "string_", "string_": jid})
+                address = a.get("string_") if isinstance(a, dict) and "string_" in a else "unknown"
+            except urllib.error.HTTPError:
+                address = "unknown"
+            rows.append({"name": p.get("friendlyName"), "jid": jid, "online": p.get("online"),
+                         "inConfiguration": p.get("sysconfig"), "address": address})
+        return rows
+
+
 def summarise_device(doc: dict) -> dict:
     d = doc.get("beoDevice", {})
     pid = d.get("productId", {})
@@ -355,8 +375,21 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--join", action="store_true",
                     help="instead, make the product join what plays elsewhere, as its own Join key does, "
                          "and say what it plays three seconds later")
+    ap.add_argument("--peers", action="store_true",
+                    help="instead, list the products this one has found, as it lists them itself, with "
+                         "the address it resolves each to: 'unknown' is one it cannot reach")
     a = ap.parse_args(argv)
     client = NsdkClient(a.ip)
+    if a.peers:
+        try:
+            rows = client.peers()
+        except (urllib.error.URLError, ValueError, OSError) as e:
+            print("%s does not answer on its product-to-product API (%s)" % (a.ip, e))
+            return 2
+        for r in rows:
+            print("%-24s %-50s online=%-5s inConfiguration=%-5s %s" % (
+                r["name"] or "", r["jid"], r["online"], r["inConfiguration"], r["address"]))
+        return 0
     if a.sources or a.device or a.active or a.join:
         try:
             if a.sources:

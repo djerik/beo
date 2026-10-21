@@ -571,7 +571,8 @@ def _listeners_follow_state():
 # The transport keys a listener sends through the tunnel, by their code.
 # Beo4 has no pause key: on a CD player STOP is what pauses it.
 LISTENER_KEYS = {0x35: "play", 0x36: "pause", 0x1E: "skip", 0x1F: "prev"}
-LISTENER_GO = 0x20
+# GO on a Beo4, and the centre button on a Beoremote One, which has no GO.
+LISTENER_GO = (0x20, 0x13)
 # How long the digits of a track number may be apart, after GO. A machine
 # takes them at a remote's pace, and a second digit makes a two-digit track.
 TRACK_DIGITS_S = 2.0
@@ -587,7 +588,7 @@ def listener_key(code):
     The digits are the machine's own: a digit alone is a disc, and GO
     followed by one or two digits is a track on it.
     """
-    if code == LISTENER_GO:
+    if code in LISTENER_GO:
         with _track_entry_lock:
             _track_entry["digits"], _track_entry["at"] = "", time.monotonic()
         log.info("     -> GO, from a listener: the digits that follow are a track")

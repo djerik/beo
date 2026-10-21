@@ -368,3 +368,7 @@ def test_go_then_digits_from_a_listener_is_a_track_and_a_digit_alone_a_disc(monk
     time.sleep(0.4)
     facade.listener_key(0x03)                           # long after GO: a disc again
     assert chosen == [3] and gone == [12, 7]
+    facade.listener_key(0x13)                           # the centre button is GO too
+    facade.listener_key(0x04)
+    facade.listener_key(0x05)
+    assert gone == [12, 7, 45]

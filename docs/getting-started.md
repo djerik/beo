@@ -221,6 +221,11 @@ which is what a join or a link needs:
 
     beo-listening 203.0.113.50 --sources
 
+`--peers` is the product's own view of the network: the products it has
+found, whether each is in the shared configuration, and the address it can
+reach each at. A product that stands there as unknown cannot be dialled by
+it, whatever the app shows.
+
 Three more words on the same command: `--device` says what the product is
 and which software it runs, `--active` what it plays now and who listens,
 and `--join` makes it join what plays elsewhere, as its own Join key does,
